@@ -22,7 +22,7 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID5_KEYSTORE_BASE64 }}
         run: |
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' >/dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'build-tools;35.0.0' >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           if [ -n "$KEYSTORE_BASE64" ]; then
