@@ -178,24 +178,33 @@ final class CommentsPanel extends FrameLayout {
                 && session.equals(SocialApi.cookie());
     }
 
-    void close(boolean resume) {
+    private void dispose() {
         if (closed) return;
         closed = true;
         work.shutdownNow();
         main.removeCallbacksAndMessages(null);
         rows.clear();
-        if (getParent() instanceof ViewGroup) ((ViewGroup) getParent()).removeView(this);
         try {
-            InteractionController.field(activity, "commentOverlay", null);
-            InteractionController.field(activity, "menuShowing", false);
+            if (InteractionController.field(activity, "commentOverlay") == this) {
+                InteractionController.field(activity, "commentOverlay", null);
+                InteractionController.field(activity, "menuShowing", false);
+            }
         } catch (Exception ignored) {
         }
+    }
+
+    void close(boolean resume) {
+        if (closed) return;
+        dispose();
+        if (getParent() instanceof ViewGroup) ((ViewGroup) getParent()).removeView(this);
         if (resume) InteractionController.get(activity).close(true);
     }
 
     @Override
     protected void onDetachedFromWindow() {
-        close(false);
+        // ViewGroup is already removing this child. Reentrant removeView corrupts its traversal on
+        // API21.
+        dispose();
         super.onDetachedFromWindow();
     }
 

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p evidence
+collect_diagnostics() {
+  adb logcat -d -s AndroidRuntime:E ActivityManager:I > evidence/final-runtime.txt || true
+  adb shell cat /data/anr/traces.txt > evidence/anr.txt 2>/dev/null || true
+  adb shell dumpsys meminfo com.dycomment.tv.android5 > evidence/memory.txt || true
+}
+trap collect_diagnostics EXIT
 test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 21
 adb shell wm size 1280x720
 adb shell wm density 160

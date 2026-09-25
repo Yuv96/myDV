@@ -209,7 +209,38 @@ public final class InteractionSelfTestActivity extends Activity {
             ModernMenuHelper.dismissCurrentMenu(this);
             require(!ModernMenuHelper.isMenuShowing(), "legacy dismiss");
             result.setText("PASS Android 5.0 menu, key routing and social data parsing");
-            Log.i("Android5InteractionTest", "PASS API21_MENU_KEYS_SOCIAL_PARSERS");
+            new android.os.Handler(android.os.Looper.getMainLooper())
+                    .postDelayed(
+                            () -> {
+                                try {
+                                    android.view.ViewGroup decor =
+                                            (android.view.ViewGroup) getWindow().getDecorView();
+                                    CommentsPanel comments = new CommentsPanel(this, "fixture");
+                                    decor.addView(
+                                            comments,
+                                            new android.view.ViewGroup.LayoutParams(-1, -1));
+                                    decor.removeView(comments);
+                                    require(
+                                            comments.getParent() == null,
+                                            "external comment removal completed");
+                                    CommentsPanel second = new CommentsPanel(this, "fixture");
+                                    decor.addView(
+                                            second,
+                                            new android.view.ViewGroup.LayoutParams(-1, -1));
+                                    second.close(false);
+                                    require(
+                                            second.getParent() == null,
+                                            "explicit comment removal completed");
+                                    Log.i(
+                                            "Android5InteractionTest",
+                                            "PASS API21_MENU_KEYS_SOCIAL_PARSERS_COMMENT_DETACH");
+                                } catch (Exception e) {
+                                    Log.e(
+                                            "Android5InteractionTest",
+                                            "FAIL comment lifecycle " + e.getMessage());
+                                }
+                            },
+                            200);
         } catch (Exception e) {
             result.setText("FAIL " + e.getMessage());
             Log.e("Android5InteractionTest", "FAIL " + e.getMessage());

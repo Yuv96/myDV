@@ -177,6 +177,11 @@ public final class InteractionController {
                 && e.getAction() == KeyEvent.ACTION_DOWN
                 && e.getRepeatCount() == 0) {
             try {
+                Object comments = field(a, "commentOverlay");
+                if (comments instanceof CommentsPanel) {
+                    ((CommentsPanel) comments).close(true);
+                    return true;
+                }
                 if (!ModernMenuHelper.isMenuShowing()
                         && !((Boolean) field(a, "menuShowing"))
                         && !((Boolean) field(a, "cameFromProfile"))) {
@@ -193,6 +198,10 @@ public final class InteractionController {
         else {
             try {
                 View comments = (View) field(a, "commentOverlay");
+                if (comments instanceof CommentsPanel) {
+                    ((CommentsPanel) comments).close(true);
+                    return true;
+                }
                 if (comments != null && comments.getParent() != null) {
                     ((ViewGroup) comments.getParent()).removeView(comments);
                     field(a, "commentOverlay", null);
