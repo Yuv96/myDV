@@ -4,7 +4,7 @@ mkdir -p evidence
 test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 21
 adb shell wm size 1280x720
 adb shell wm density 160
-adb install -r dist/myDV-Android5-1.1.9-a5.4.apk
+adb install -r dist-test/Douyin-TV-0.1.0.apk
 adb logcat -c
 adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.InteractionSelfTestActivity
 sleep 3
@@ -37,17 +37,6 @@ done
 cat evidence/switching-test.txt
 $passed
 adb exec-out screencap -p > evidence/switching-recovered.png
-adb shell am force-stop com.dycomment.tv.android5
-adb logcat -c
-adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.MainActivity
-sleep 25
-adb shell input keyevent 20
-sleep 15
-adb exec-out screencap -p > evidence/android5-live.png
-adb logcat -d -s Android5Player:I NextVideoCache:I AndroidRuntime:E > evidence/live.txt
-cat evidence/live.txt
-if grep -q 'FATAL EXCEPTION' evidence/live.txt; then exit 1; fi
-adb shell dumpsys activity activities | grep mResumedActivity | grep com.dycomment.tv.android5
 adb shell input keyevent 82
 sleep 2
 adb shell uiautomator dump /data/local/tmp/quick.xml

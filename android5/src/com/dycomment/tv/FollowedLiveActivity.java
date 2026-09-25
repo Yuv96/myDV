@@ -22,13 +22,13 @@ public final class FollowedLiveActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xff101620); root.setPadding(dp(24), dp(16), dp(24), dp(16));
+        root.setBackgroundColor(UiTheme.BLACK); root.setPadding(dp(24), dp(16), dp(24), dp(16));
         LinearLayout bar = new LinearLayout(this); bar.setGravity(Gravity.CENTER_VERTICAL);
         TextView back = button("返回"); back.setOnClickListener(v -> finish()); bar.addView(back);
         TextView title = new TextView(this); title.setText("  关注的直播"); title.setTextSize(26); title.setTextColor(-1);
         bar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         refresh = button("刷新"); refresh.setOnClickListener(v -> load()); bar.addView(refresh); root.addView(bar);
-        status = new TextView(this); status.setTextSize(18); status.setTextColor(0xffbbbbbb);
+        status = new TextView(this); status.setTextSize(18); status.setTextColor(UiTheme.MUTED);
         status.setPadding(dp(8), dp(14), dp(8), dp(14)); root.addView(status);
         list = new android.widget.ListView(this); list.setDividerHeight(dp(6));
         adapter = new android.widget.BaseAdapter() {
@@ -69,7 +69,7 @@ public final class FollowedLiveActivity extends Activity {
     }
     void load() {
         if (loading) return;
-        if (!SocialApi.personalCookie()) { status.setText("请先在返回菜单中设置自己的 Cookie，再查看关注的直播。"); return; }
+        if (!SocialApi.personalCookie()) { status.setText("请先在账号与登录中扫码登录，再查看关注的直播。"); return; }
         final String cookie = SocialApi.cookie(); final int token = ++generation;
         loading = true; refresh.setText("加载中"); status.setText("正在读取关注的直播..."); entries.clear(); adapter.notifyDataSetChanged(); images.clear();
         SocialApi.WORK.execute(() -> {

@@ -62,7 +62,7 @@ public final class ModernMenuHelper {
     static int dp(Context c, int n) { return Math.round(n * c.getResources().getDisplayMetrics().density); }
     static GradientDrawable background(boolean focused) {
         GradientDrawable d = new GradientDrawable();
-        d.setColor(focused ? Color.rgb(48, 65, 88) : Color.TRANSPARENT);
+        d.setColor(focused ? 0x26ffffff : Color.TRANSPARENT);
         d.setCornerRadius(10);
         if (focused) d.setStroke(2, Color.rgb(255, 91, 121));
         return d;
@@ -83,12 +83,12 @@ public final class ModernMenuHelper {
             setOnClickListener(v -> close(true));
             LinearLayout box = new LinearLayout(a);
             box.setOrientation(LinearLayout.VERTICAL); box.setClickable(true);
-            box.setBackgroundColor(0xff141b26);
+            box.setBackgroundColor(UiTheme.BLACK);
             box.setPadding(dp(a, 24), dp(a, 18), dp(a, 24), dp(a, 18));
             int width = Math.min(dp(a, large ? 380 : 360), a.getResources().getDisplayMetrics().widthPixels * 3 / 4);
             FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(width, -1, Gravity.RIGHT);
             addView(box, bp);
-            TextView heading = new TextView(a); heading.setText(title); heading.setTextColor(0xffaaaaaa);
+            TextView heading = new TextView(a); heading.setText(title); heading.setTextColor(UiTheme.MUTED);
             heading.setTextSize(16); heading.setPadding(0, 0, 0, dp(a, 12)); box.addView(heading);
             LinearLayout list = new LinearLayout(a); list.setOrientation(LinearLayout.VERTICAL);
             if (large) box.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -111,7 +111,7 @@ public final class ModernMenuHelper {
                 rp.bottomMargin = dp(a, 4); list.addView(row, rp);
             }
             TextView hint = new TextView(a); hint.setText(large ? "菜单键：评论    返回键：关闭" : "上下选择    确定进入    返回关闭");
-            hint.setTextSize(12); hint.setTextColor(0xffaaaaaa); hint.setPadding(0, dp(a, 8), 0, 0); box.addView(hint);
+            hint.setTextSize(12); hint.setTextColor(UiTheme.MUTED); hint.setPadding(0, dp(a, 8), 0, 0); box.addView(hint);
         }
         public void close(boolean notify) {
             if (closed) return;

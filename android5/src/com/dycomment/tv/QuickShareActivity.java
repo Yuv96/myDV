@@ -15,7 +15,7 @@ public final class QuickShareActivity extends Activity {
     String session,id,cursor="0"; boolean busy; int generation;
     @Override public void onCreate(Bundle b) {
         super.onCreate(b); session=SocialApi.cookie(); id=getIntent().getStringExtra("video_id");
-        LinearLayout root=new LinearLayout(this); root.setOrientation(1); root.setPadding(dp(24),dp(18),dp(24),dp(18)); root.setBackgroundColor(0xff101620);
+        LinearLayout root=new LinearLayout(this); root.setOrientation(1); root.setPadding(dp(24),dp(18),dp(24),dp(18)); root.setBackgroundColor(UiTheme.BLACK);
         TextView title=text("分享当前短视频",26); root.addView(title);
         status=text("选择好友即分享此视频，不附带文字消息",18); root.addView(status);
         list=new ListView(this); list.setDividerHeight(dp(5)); list.setSelector(ModernMenuHelper.background(true));
@@ -46,7 +46,7 @@ public final class QuickShareActivity extends Activity {
     boolean valid(int token) { return token==generation && !isFinishing() && !isDestroyed() && session.equals(SocialApi.cookie()); }
     void load() {
         if(busy) return;
-        if(!SocialApi.personalCookie() || id==null || !id.matches("[0-9]+")) { status.setText("请设置自己的 Cookie，并选择短视频后分享"); return; }
+        if(!SocialApi.personalCookie() || id==null || !id.matches("[0-9]+")) { status.setText("请扫码登录，并选择短视频后分享"); return; }
         busy=true; final int token=generation; more.setText("正在读取好友...");
         SocialApi.WORK.execute(() -> {
             try {

@@ -71,10 +71,10 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     }
     private synchronized LibVLC engine() {
         if (engine==null) {
-            engine=new LibVLC(getContext(),new ArrayList<String>(Arrays.asList(
+            engine=new LibVLC(getContext().getApplicationContext(),new ArrayList<String>(Arrays.asList(
                 "--avcodec-hw=none", "--network-caching=1000", "--file-caching=200",
                 "--no-video-title-show", "--no-snapshot-preview")));
-            engine.setUserAgent("myDV Android5",NextVideoCache.USER_AGENT);
+            engine.setUserAgent("Douyin TV 0.1.0",NextVideoCache.USER_AGENT);
         }
         return engine;
     }
@@ -286,6 +286,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
         surface.setLayoutParams(new LayoutParams(w,h,Gravity.CENTER));
     }
     protected void onDetachedFromWindow() {
-        detached=true; stopPlayback(); cache.close(); super.onDetachedFromWindow();
+        detached=true; stopPlayback(); cache.close();
+        onPrepared=null; onCompletion=null; onError=null; onInfo=null; onBuffering=null; pending=null; pendingHeaders=null; super.onDetachedFromWindow();
     }
 }

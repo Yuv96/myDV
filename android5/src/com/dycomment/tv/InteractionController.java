@@ -29,6 +29,10 @@ public final class InteractionController {
     boolean busy, stateLoading, resumePlayback;
     long lastUnread;
     int unread = -1;
+    final SimpleDateFormat clockFormat=new SimpleDateFormat("HH:mm",Locale.CHINA);
+    final Date clockDate=new Date();
+    long clockMinute=-1;
+    String clockTime="";
     boolean unreadLoading, foreground;
     final java.util.concurrent.ExecutorService unreadWork=java.util.concurrent.Executors.newSingleThreadExecutor();
     final Runnable unreadTick=new Runnable() {
@@ -40,13 +44,15 @@ public final class InteractionController {
     };
     public static void resumed(Activity a) {
         InteractionController c=get(a); c.foreground=true; c.lastUnread=0;
-        c.handler.removeCallbacks(c.unreadTick); c.handler.post(c.unreadTick);
+        c.handler.removeCallbacks(c.unreadTick); c.handler.post(c.unreadTick); CredentialHealth.attach(a);
     }
     public static void paused(Activity a) {
-        InteractionController c=get(a); c.foreground=false; c.handler.removeCallbacks(c.unreadTick);
+        InteractionController c=get(a); c.foreground=false; c.handler.removeCallbacks(c.unreadTick); CredentialHealth.detach(a);
     }
     public static void destroyed(Activity a) {
-        InteractionController c=get(a); c.foreground=false; c.handler.removeCallbacksAndMessages(null); c.unreadWork.shutdownNow(); LiveChatController.destroy(a);
+        InteractionController c=get(a); c.foreground=false; c.handler.removeCallbacksAndMessages(null); c.unreadWork.shutdownNow(); c.generation++; c.close(false); c.session=""; c.unreadSession=""; c.item=null; c.state=null;
+        ModernMenuHelper.dismissCurrentMenu(a); PlaybackCoordinator.destroy(a); LiveChatController.destroy(a); CredentialHealth.detach(a);
+        a.getWindow().getDecorView().setTag(TAG,null);
     }
     String unreadSession = "";
 
@@ -127,13 +133,7 @@ public final class InteractionController {
             true, true, this::select, () -> close(true), this::comments);
         loadState();
     }
-    void comments() {
-        close(false); invoke("showComments");
-        try {
-            View comments = (View) field(activity, "commentOverlay");
-            if (comments != null) comments.setId(activity.getResources().getIdentifier("android5_comments_panel", "id", activity.getPackageName()));
-        } catch (Exception ignored) {}
-    }
+    void comments() { close(false); CommentsPanel.show(activity); }
     boolean active(int token, String cookie) {
         return !activity.isFinishing() && !activity.isDestroyed() && token == generation
             && panel != null && !panel.closed && cookie.equals(SocialApi.cookie());
@@ -175,14 +175,14 @@ public final class InteractionController {
             return;
         }
         if (action == 4) {
-            if(!SocialApi.personalCookie()) { toast("请先设置自己的 Cookie"); return; }
+            if(!SocialApi.personalCookie()) { toast("请先扫码登录"); return; }
             if(!id.matches("[0-9]+") || text(item,"isLive").equals("true")) { toast("仅支持分享当前短视频"); return; }
             close(false);
             Intent share=new Intent(activity,QuickShareActivity.class); share.putExtra("video_id",id); activity.startActivity(share);
             return;
         }
         if (busy) return;
-        if (!SocialApi.personalCookie()) { toast("请先在返回菜单中设置自己的 Cookie"); return; }
+        if (!SocialApi.personalCookie()) { toast("请先在账号与登录中扫码登录"); return; }
         if (!session.equals(SocialApi.cookie())) { session = SocialApi.cookie(); state = null; }
         if (state == null) { toast("正在读取互动状态，请稍候再按确定"); loadState(); return; }
         int current = action == 0 ? state.liked : action == 1 ? state.followed : state.collected;
@@ -211,21 +211,37 @@ public final class InteractionController {
     }
     void settings() {
         pause();
-        String[] names = {"关注的直播", "搜索", "精选", "刷新推荐", "弹幕开关", "弹幕透明度", "弹幕大小", "弹幕速度", "播放倍速",
-            "画质设置", "个性化设置", "设置 Cookie", "重置默认 Cookie", "设置评论 Token", "重置评论 Token", "个人主页", "汽水音乐", "关于", "退出"};
-        String[] methods = {"", "openSearch", "openFeatured", "loadFeed", "toggleDanmaku", "showOpacityPicker", "showSizePicker", "showDanmakuSpeedPicker", "showSpeedPicker",
-            "showQualityPicker", "showPersonalizationMenu", "showCookieDialog", "resetCookie", "showMsTokenInputDialog", "", "openSelfProfile", "openQishui", "showAbout", "finish"};
-        ModernMenuHelper.showMenu(activity, "播放与设置", names, index -> {
+        String[] labels={"内容与主页","播放与弹幕","界面显示","账号与登录"+(CredentialHealth.needsRefresh() ? " · 需要更新" : ""),"操作说明与关于","退出"};
+        ModernMenuHelper.showMenu(activity,"设置",labels,index->{
+            if(index==0) submenu("内容与主页",new String[]{"关注的直播","个人主页","搜索","精选","刷新推荐"},new String[]{"live","openSelfProfile","openSearch","openFeatured","loadFeed"});
+            else if(index==1) submenu("播放与弹幕",new String[]{"播放倍速","播放画质","弹幕开关","弹幕透明度","弹幕大小","弹幕速度"},new String[]{"showSpeedPicker","showQualityPicker","toggleDanmaku","showOpacityPicker","showSizePicker","showDanmakuSpeedPicker"});
+            else if(index==2) displaySettings();
+            else if(index==3) submenu("账号与登录",new String[]{SocialApi.personalCookie() ? "重新扫码登录" : "扫码登录"},new String[]{"login"});
+            else if(index==4) { showing(false); activity.startActivity(new Intent(activity,AboutActivity.class)); }
+            else activity.finish();
+        },()->close(true));
+    }
+    void displaySettings() {
+        String[] labels={"资料卡显示","时间显示","菜单暂停","自动连播","过滤竖屏"};
+        ModernMenuHelper.showMenu(activity,"界面与偏好",labels,index->{
             showing(false);
-            if (index == 0) { activity.startActivity(new Intent(activity, FollowedLiveActivity.class)); return; }
-            if (index == 14) {
-                try { Class.forName("com.dycomment.tv.MsTokenHelper").getMethod("resetTokens", android.content.Context.class).invoke(null, activity); }
-                catch (Exception e) { toast("重置失败"); }
-                if (resumePlayback) invoke("resumeFromMenu"); return;
-            }
-            if (index == 18) { activity.finish(); return; }
-            invoke(methods[index]);
-        }, () -> { showing(false); if (resumePlayback) invoke("resumeFromMenu"); });
+            if(index==0) { invoke("showOverlayModePicker"); return; }
+            String[] fields={"","showClock","pauseOnMenu","autoPlayNext","filterVertical"};
+            try {
+                boolean enabled=!((Boolean)field(activity,fields[index])); field(activity,fields[index],enabled);
+                invoke("saveDanmakuPrefs"); if(index==1) updateClock(activity);
+                toast(labels[index]+(enabled ? "已开启" : "已关闭"));
+                if(resumePlayback) invoke("resumeFromMenu");
+            } catch(Exception e) { toast("设置暂不可用"); }
+        },()->settings());
+    }
+    void submenu(String title,String[] labels,String[] methods) {
+        ModernMenuHelper.showMenu(activity,title,labels,index->{
+            showing(false); String method=methods[index];
+            if(method.equals("live")) activity.startActivity(new Intent(activity,FollowedLiveActivity.class));
+            else if(method.equals("login")) CredentialHealth.open(activity);
+            else invoke(method);
+        },()->settings());
     }
     public static void updateClock(Activity a) {
         InteractionController c = get(a);
@@ -235,7 +251,9 @@ public final class InteractionController {
             clock.setVisibility(View.VISIBLE);
             String cookie = SocialApi.cookie();
             if (!cookie.equals(c.unreadSession)) { c.unreadSession = cookie; c.unread = -1; c.lastUnread = 0; }
-            String label=new SimpleDateFormat("HH:mm", Locale.CHINA).format(new Date()) + (c.unread > 0 ? "  |  +" + c.unread : "");
+            long wall=System.currentTimeMillis();
+            if(c.clockMinute!=wall/60000) { c.clockMinute=wall/60000; c.clockDate.setTime(wall); c.clockTime=c.clockFormat.format(c.clockDate); }
+            String label=c.clockTime + (c.unread > 0 ? "  |  +" + c.unread : "");
             if(!label.contentEquals(clock.getText())) clock.setText(label);
             String description=c.unread > 0 ? "时间，抖音未读通知 " + c.unread : "时间";
             if(!description.equals(clock.getContentDescription())) clock.setContentDescription(description);

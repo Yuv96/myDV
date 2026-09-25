@@ -1,1 +1,7 @@
 dist/
+
+dist-test/
+*.p12
+*.jks
+*.keystore
+__pycache__/

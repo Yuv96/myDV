@@ -20,14 +20,18 @@ final class PreviewImages {
     private final LruCache<String,Bitmap> cache=new LruCache<String,Bitmap>(2*1024*1024) {
         protected int sizeOf(String key,Bitmap image) { return image.getByteCount(); }
     };
-    private int epoch;
+    private volatile int epoch;
+    private volatile boolean closed;
     void bind(ImageView view,String url) {
-        view.setTag(url); view.setImageBitmap(null); view.setBackgroundColor(0xff283340);
+        if(closed) return;
+        view.setTag(url); view.setImageBitmap(null); view.setBackgroundColor(0x26ffffff);
         if(url==null || url.isEmpty()) return;
         Bitmap cached=cache.get(url);
         if(cached!=null) { view.setImageBitmap(cached); return; }
         final int token=epoch;
+        final java.lang.ref.WeakReference<ImageView> target=new java.lang.ref.WeakReference<>(view);
         work.execute(() -> {
+            if(closed || token!=epoch) return;
             Bitmap bitmap=null; HttpURLConnection c=null;
             try {
                 c=(HttpURLConnection)new URL(url).openConnection(); c.setConnectTimeout(4000); c.setReadTimeout(4000);
@@ -51,12 +55,13 @@ final class PreviewImages {
             } catch(Exception ignored) {} finally { if(c!=null) c.disconnect(); }
             final Bitmap result=bitmap;
             main.post(() -> {
-                if(token!=epoch || result==null) return;
+                if(token!=epoch || closed || result==null) return;
+                ImageView image=target.get();
                 cache.put(url,result);
-                if(url.equals(view.getTag())) view.setImageBitmap(result);
+                if(image!=null && url.equals(image.getTag())) image.setImageBitmap(result);
             });
         });
     }
     void clear() { epoch++; work.getQueue().clear(); cache.evictAll(); }
-    void close() { clear(); work.shutdownNow(); main.removeCallbacksAndMessages(null); }
+    void close() { closed=true; clear(); work.shutdownNow(); main.removeCallbacksAndMessages(null); }
 }

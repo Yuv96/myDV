@@ -1,87 +1,63 @@
-# Android 5.0 TV 修复版
+# 抖音抬头版
 
-最低系统保持 **Android 5.0 / API 21**。新版基于 Lite 1.1.9，使用 LibVLC 软件解码修复旧系统 H.264 播放路径，并增加下一条 MP4 预缓存。
+面向遥控器的抖音电视客户端，在 My DV 的基础上重构开发。最低支持 **Android 5.0（API 21）**，采用 H.264 软件解码与有上限的下一条视频预缓存。
 
-**[下载 1.1.9-a5.4 APK](https://github.com/Yuv96/myDV/releases/download/android5-ui-return-v4/myDV-Android5-1.1.9-a5.4.apk)** · [发布说明](https://github.com/Yuv96/myDV/releases/tag/android5-ui-return-v4) · [构建与播放测试](https://github.com/Yuv96/myDV/actions/workflows/android5-player.yml)
+当前整理版本 **0.1.0**。应用包名保持 `com.dycomment.tv.android5`，内部版本号为 `1005`，正式签名包可覆盖此前的 Android5 社区版，保留电视上的个人账号和设置。
 
-a5.4 修复返回作者主页后的画面绑定与解码恢复，加入直播预览图和居中适配。左侧头像独立，右侧一块半透明资料卡包含昵称、数据和简介，整组距底部 48dp；通知数每 30 秒刷新。新增好友视频卡片分享入口，发送仍待实际验证；私信总数未接通，真实直播弹幕待验证。详见 [本轮更新说明](android5/UI-RETURN-NOTES.md)。
+## 下载与安装
 
-a5.3 修复慢网络下快速往返切换的界面阻塞、旧请求覆盖和底栏提前变化，加载超时可按上/下切换或确定键重试。超大视频跳过整条预下载，后台缓存增加限时、限速与取消控制；详见 [切换修复说明](android5/SWITCHING-NOTES.md)。
+安装包见 [Releases](https://github.com/Yuv96/myDV/releases)。下载 APK 后复制到电视安装；旧版已经登录的用户请覆盖安装，不要先卸载。
 
-a5.2 保留已修复的播放与缓存：菜单键打开纯文字大号互动面板，再按菜单键打开评论；返回键打开弹幕、倍速等设置。新增关注直播列表及 `时间 | +N` 未读通知提示。已接入喜欢、关注、收藏状态与操作，真实写操作仍需电视实测；**a5.4 已新增好友分享入口但发送待验证，角标暂不包含私信未读数**。功能范围见 [交互更新说明](android5/INTERACTION-NOTES.md)。与 a5.1 同包名、同签名，可覆盖更新；新账号功能使用电视里导入的个人 Cookie。
+**0.1.0 的扫码登录尚未通过真实登录验证。** 开发环境的抖音 Passport 接口返回 4031，未签发二维码。程序接入了官方二维码申请、轮询、确认后验证与保存流程，但该限制解除前，新安装不能保证登录成功；扫码也不能保证取得评论接口所需的动态请求签名。此前已保存的个人 Cookie 和 Token 会保留，新登录失败不会覆盖它们。需要现有版本的用户仍可下载 [a5.4](https://github.com/Yuv96/myDV/releases/tag/android5-ui-return-v4)。
 
-已在 API 21 x86 模拟器验证 H.264 High/Baseline 视频输出、播放进度、下一条提前下载和切换后的缓存命中，也观察到在线推荐视频正常出画面。电视实机、个人账号、直播等仍需实际验证。建议老电视先使用默认 720p。
+## 遥控器操作
 
-原版只有视频列表预取，没有下一条视频内容缓存。新版在当前视频播放后预下载下一条完整 MP4，单条上限 32 MiB，总缓存上限 64 MiB。缓存未完成、视频过大、连续快速切换或 CPU 较慢时仍会等待；不承诺所有情况无停顿。
+| 按键 | 行为 |
+| --- | --- |
+| 上 / 下 | 切换上一条、下一条视频 |
+| 确定 | 暂停或继续播放；加载失败时重试 |
+| 左 / 右 | 推荐面板、播放进度及快进快退 |
+| 菜单 | 喜欢、关注、收藏、作者主页、分享 |
+| 再按菜单 | 打开评论 |
+| 返回 | 关闭当前面板；播放页打开设置 |
 
-新包名 `com.dycomment.tv.android5`、名称 **myDV Android5**，可与原版并存。原版 Cookie/设置不会自动迁移；登录仍为“返回键 → 设置Cookie”，本次没有新增扫码登录。
+设置分为内容与主页、播放与弹幕、界面与偏好、账号与登录、操作说明与关于。汽水音乐、局域网凭证推送和手工 Cookie / Token 输入入口已移除。好友分享只发送当前短视频，不附加文字。
 
-公开上游不含 Android 工程，因此这是基于官方 APK 的可复现兼容补丁，不是完整源码重编译。新增 Java 源码、固定依赖与构建过程见 [android5/](android5/)。原始 Lite APK 的安装启动验证发布保留在 [旧版记录](https://github.com/Yuv96/myDV/releases/tag/android5-lite-v1.1.9)。
+界面使用黑、粉、白及其透明度。头像位于资料卡外侧，昵称与数据同一行，简介位于下方；资料卡保留底部 48dp 安全间距。半透明底色兼容旧电视，不做实时背景模糊。
 
----
+## 登录状态
 
-<div align="center">
-    <h1>my Debug Video<sup>TV</sup></h1>
+打开“返回 → 账号与登录 → 扫码登录”。只有抖音实际返回二维码时才显示图片，随后用抖音 App 扫描并确认。新凭证通过账号接口验证后才替换旧账号，Cookie 和实际收到的 `msToken` 只保存在电视私有配置中。
 
+程序依据接口响应提示权限异常：明确拒绝，或同一接口五分钟内至少三次相隔十秒的异常响应，会显示登录更新提示。普通断网和超时不直接判断为凭证失效，合法的空评论列表也不算失效。`a_bogus` 是请求签名，不是扫码必然发放的长期 Token；目前没有实现可靠的自动动态签名，不能宣称“扫码即可修复所有评论权限”。
 
-![GitHub Repo stars](https://img.shields.io/github/stars/mytv-android/myDV)
-![GitHub all releases](https://img.shields.io/github/downloads/mytv-android/myDV/total)
-[![Android Sdk Require](https://img.shields.io/badge/Android-6.0%2B-informational?logo=android)](https://apilevels.com/#:~:text=Jetpack%20Compose%20requires%20a%20minSdk%20of%2023%20or%20higher)
-[![GitHub](https://img.shields.io/github/license/mytv-android/myDV)](https://github.com/mytv-android/myDV)
+## 播放与资源限制
 
-</div>
-<div  align="center">
-    <img src="./img/play_store_feature_graphic.png" width="100%"/>
-    <p>卡是正常的，保持深呼吸</p>
-</div>
+下一条视频在当前视频出画面后才开始预缓存。单文件上限 32MiB、总缓存上限 64MiB；超过上限、未知长度、直播及图集不预缓存。快速切换会取消旧任务，仅保留最新请求，加载超时后仍可返回上一条。
 
-## 使用教程
+评论使用复用列表行，一次页面最多加载 200 条。主页、好友和直播缩略图限制下载体积、解码尺寸、任务队列和缓存；退出页面取消待处理任务。已停用不再参与播放的本地视频代理。推荐列表保留最近一段历史，避免连续观看时无限累积元数据。
 
-### 下载
+## 开发与验证
 
-通过右侧release进行下载
+此仓库不是上游完整 Android 工程。构建基于 SHA-256 固定的 My DV Lite 1.1.9 APK，以可读 Java 实现替换播放器和交互模块，对保留的上游界面施加可审查补丁。
 
-### 安装
+| 位置 | 内容 |
+| --- | --- |
+| `android5/src/` | 播放、缓存、菜单、账号与网络模块 |
+| `android5/tests/` | API 21 本地测试场景，不进入正式 APK |
+| `android5/build.py` | 固定依赖、编译、组装、签名 |
+| `android5/cleanup.py` | 上游 ABI、界面与遗留代码清理 |
+| `.github/workflows/android5-player.yml` | GitHub Actions 构建与回归 |
+| `docs/` | 架构、变更和历史记录 |
 
-可以使用我们的姊妹项目[mytv-android](https://github.com/mytv-android/mytv-android)来安装（但你需要先安装它）
+构建环境、测试范围及签名说明见 [开发指南](android5/README.md)。API 21 模拟器覆盖 H.264 High / Baseline、竖视频居中、暂停、倍速、拖动、限量预缓存、快速往返切换、超时恢复与主页返回。模拟器结果不能替代真实电视的长时间运行；不宣称已经证明完全没有内存泄漏。
 
-### Cookie填写
+目前快速分享真实送达、直播弹幕真实显示仍需要账号实测；右上角的未读提示来自通知计数，尚不等同于私信未读数。详细限制见 [0.1.0 变更说明](docs/CHANGELOG.md)。
 
-- 如需登录，需要在设置中填写Cookie，这需要在网页端中获取。你需要登录网页端（https://www.douyin.com ），并使用Chrome插件（例如https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm ），并从插件复制登录后的所有Cookie（就举例的插件而言，点击插件，点击右下角的Export，选择以“Header String”格式导出，图文并茂教程可以参考这里的第一步和第二步https://support-orig.hubstudio.cn/7794/e1fd ）.
-- 不要在控制台使用``document.cookie``来获取，因为一些敏感Cookie不能被此方式获取到.
-- 如果以上信息未能帮助到你，你还可以参考https://github.com/mytv-android/myDV/issues/25
+## 反馈与联系
 
-### 操作方式
+当前仓库的正式反馈入口为 [GitHub Issues](https://github.com/Yuv96/myDV/issues)。反馈请提供版本、电视型号、Android 版本和复现步骤，不要上传 Cookie、Token 或个人消息内容。
 
-~~按到哪儿算哪儿吧~~
+## 许可证与来源
 
-- 上下左右键移动焦点
-- 返回键打开导航栏
-- 在视频页使用左键/点击屏幕左部分显示视频推荐面板，右键/点击屏幕右部分显示进度条，继续点击左键或右键快进/快退视频
-- 使用确认键/点击中间部分屏幕以暂停/播放视频
-- 支持手势向左向右拖拽以快退/快进
-- 连续按两次退出以退出应用
-
-### 卸载
-
-请在安装后24小时内卸载，因为这个项目不是用来在TV上刷视频的，只是告诉你AI写的代码有多厉害。
-
-
-## 信息获取
-
-可以来这个群里玩，虽然它是隔壁项目的群（懒得建新的了）
-
-<div align="center">
-    <img src="./img/QRCode.png" width="48%"/>
-</div>
-
-## 星标历史
-
-
-
-[![Stargazers over time](https://starchart.cc/mytv-android/myDV.svg?variant=adaptive)](https://starchart.cc/mytv-android/myDV)
-
-
-## 著作权、许可证声明和致谢
-
-- AI写的代码，也不知道它都抄了谁的代码，在此一并感谢了！
+保留 [GPL-3.0 许可证](LICENSE)及 [My DV 上游来源](https://github.com/mytv-android/myDV)。LibVLC 3.7.6 的许可、对应源码和替换说明见 [第三方许可说明](android5/LIBVLC-LICENSE.txt)。发布附件保留对应 Java 绑定源码；上游未公开的完整源码不在本仓库中，也不应将本项目描述为完整源码发行。

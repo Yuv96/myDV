@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Rebuild the public Lite APK with reviewed API-21 playback/cache sources."""
 import hashlib, os, pathlib, re, shutil, subprocess, urllib.request, zipfile
+from cleanup import apply as cleanup
 
 ROOT=pathlib.Path(__file__).resolve().parent
-WORK=ROOT/'build'
+WORK=pathlib.Path(os.environ.get('BUILD_WORK',str(ROOT/'build')))
 WORK.mkdir(exist_ok=True)
-DIST=ROOT.parent/'dist'
+SELF_TEST=os.environ.get('SELF_TEST')=='1'
+DIST=ROOT.parent/('dist-test' if SELF_TEST else 'dist')
 DIST.mkdir(exist_ok=True)
 SDK=pathlib.Path(os.environ['ANDROID_HOME'])
 BT=SDK/'build-tools'/'35.0.0'
@@ -27,6 +29,7 @@ with zipfile.ZipFile(vlc) as z: z.extractall(WORK/'vlc')
 package=decoded/'smali/com/dycomment/tv'
 for file in package.glob('PlayerView*.smali'): file.unlink()
 for file in package.glob('ModernMenuHelper*.smali'): file.unlink()
+assert not list(package.glob('PlayerView*.smali')), 'remove player failed'
 main=package/'MainActivity.smali'
 text=main.read_text()
 pattern=r'(?ms)^\.method public synthetic lambda\$onCreate\$0\$com-dycomment-tv-MainActivity\(Landroid/media/MediaPlayer;\)V\n.*?^\.end method'
@@ -148,6 +151,11 @@ for method, target in [('onResume', 'resumed'), ('onPause', 'paused'), ('onDestr
     assert text.count(marker)==1
     text=text.replace(marker,marker+f'\n    invoke-static {{p0}}, Lcom/dycomment/tv/InteractionController;->{target}(Landroid/app/Activity;)V')
 
+# Keep a bounded history when recommendations append a new page.
+callback=package/'MainActivity$25.smali'; body=callback.read_text()
+method=re.search(r'(?ms)^\.method public onResult\(.*?^\.end method',body).group()
+method=method.replace('    return-void', '    iget-object v0, p0, Lcom/dycomment/tv/MainActivity$25;->this$0:Lcom/dycomment/tv/MainActivity;\n    invoke-static {v0}, Lcom/dycomment/tv/PlaybackCoordinator;->trimFeed(Landroid/app/Activity;)V\n    return-void')
+body=re.sub(r'(?ms)^\.method public onResult\(.*?^\.end method',lambda _:method,body); callback.write_text(body)
 main.write_text(text)
 # Avoid offering upstream APKs with a different package/signature as updates.
 updater=package/'UpdateHelper.smali'
@@ -165,6 +173,8 @@ text=text.replace('</application>','<activity android:name="com.dycomment.tv.Pla
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.FollowedLiveActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.InteractionSelfTestActivity" android:exported="true" />\n</application>')
 text=text.replace("</application>",'<activity android:name="com.dycomment.tv.SwitchingSelfTestActivity" android:exported="true" />\n</application>')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.QuickShareActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.SurfaceCoverTestActivity" android:exported="false" />\n</application>')
+if not SELF_TEST:
+    text=re.sub(r'<activity[^>]+android:name="com.dycomment.tv.(?:PlaybackSelfTestActivity|InteractionSelfTestActivity|SwitchingSelfTestActivity|SurfaceCoverTestActivity)"[^>]*/>', '', text)
 manifest.write_text(text)
 ids=decoded/'res/values/ids.xml'
 names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel'] + [f'android5_menu_row_{i}' for i in range(32)]
@@ -191,26 +201,35 @@ tree.write(layout,encoding='utf-8',xml_declaration=True)
 (decoded/'res/drawable/android5_video_card.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
   <corners android:radius="12dp" />
-  <gradient android:angle="90" android:startColor="#c018202b" android:endColor="#a0303945" />
+  <gradient android:angle="90" android:startColor="#c0000000" android:endColor="#a0000000" />
   <stroke android:width="1dp" android:color="#30ffffff" />
 </shape>''')
-config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1004').replace('versionName: 1.1.9','versionName: 1.1.9-a5.4')
+assert not list(package.glob('PlayerView*.smali')), 'before cleanup'
+cleanup(decoded)
+assert not list(package.glob('PlayerView*.smali')), 'after cleanup'
+config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1005').replace('versionName: 1.1.9','versionName: 0.1.0')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
 shutil.copy(ROOT/'README.md',assets/'ANDROID5-SOURCES.md')
-for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'baseline'),('baseline',360,640,'portrait')]:
-    run('ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i',f'testsrc2=size={width}x{height}:rate=25',
-        '-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','16','-c:v','libx264','-preset','veryfast','-crf','30',
-        '-profile:v',profile,'-level:v','4.1' if profile=='high' else '3.0','-pix_fmt','yuv420p','-c:a','aac','-b:a','64k','-movflags','+faststart',assets/f'selftest-{name}.mp4')
+if SELF_TEST:
+    for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'baseline'),('baseline',360,640,'portrait')]:
+        run('ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i',f'testsrc2=size={width}x{height}:rate=25',
+            '-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','16','-c:v','libx264','-preset','veryfast','-crf','30',
+            '-profile:v',profile,'-level:v','4.1' if profile=='high' else '3.0','-pix_fmt','yuv420p','-c:a','aac','-b:a','64k','-movflags','+faststart',assets/f'selftest-{name}.mp4')
 shutil.copytree(WORK/'vlc/jni',decoded/'lib',dirs_exist_ok=True)
 classes=WORK/'classes'; shutil.rmtree(classes, ignore_errors=True); classes.mkdir(exist_ok=True)
 sources=list((ROOT/'src').rglob('*.java'))
+if SELF_TEST: sources+=list((ROOT/'tests/java').rglob('*.java'))
+assert not list(package.glob('PlayerView*.smali')), 'before javac'
 run('javac','-source','8','-target','8','-encoding','UTF-8','-classpath',str(ANDROID)+os.pathsep+str(WORK/'vlc/classes.jar'),'-d',classes,*sources)
 compiled=WORK/'compiled.jar'
 with zipfile.ZipFile(compiled,'w') as z:
     for f in classes.rglob('*.class'): z.write(f,f.relative_to(classes))
-run('java','-jar',apktool,'b',decoded,'-o',WORK/'base.apk')
+assert not list(package.glob('PlayerView*.smali')), 'legacy player returned'
+shutil.rmtree(decoded/'build',ignore_errors=True)
+(WORK/'base.apk').unlink(missing_ok=True)
+run('java','-jar',apktool,'b','-f',decoded,'-o',WORK/'base.apk')
 with zipfile.ZipFile(WORK/'base.apk') as z: (WORK/'original.dex').write_bytes(z.read('classes.dex'))
 dexdir=WORK/'dex'; dexdir.mkdir(exist_ok=True)
 run(BT/'d8','--min-api','21','--lib',ANDROID,'--output',dexdir,WORK/'original.dex',compiled,WORK/'vlc/classes.jar')
@@ -226,7 +245,7 @@ password=os.environ.get('ANDROID5_KEYSTORE_PASSWORD','android5-build')
 if not pathlib.Path(keystore).exists():
     run('keytool','-genkeypair','-keystore',keystore,'-storetype','PKCS12','-storepass',password,'-keypass',password,
         '-alias','android5','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=myDV Android5 Community')
-apk=DIST/'myDV-Android5-1.1.9-a5.4.apk'
+apk=DIST/'Douyin-TV-0.1.0.apk'
 os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)

@@ -153,7 +153,9 @@ public final class SwitchingSelfTestActivity extends Activity implements Applica
                         feed.startActivity(new Intent(feed,SurfaceCoverTestActivity.class));
                     } else {
                         Log.i("Android5SwitchTest","PASS API21_REAL_FEED_OVERSIZE_STALL_RAPID_RETURN_TIMEOUT_STALE_CALLBACKS_SURFACE_RETURN_CARD returns="+returns+" heartbeat_ms="+worstGap);
-                        done=true; cleanup(); return;
+                        InteractionController.field(feed,"cameFromProfile",false);
+                        // Leave the real fixture-backed screen available for UI automation.
+                        done=true; handler.removeCallbacksAndMessages(null); return;
                     }
                 }
             } catch(Exception e) { fail(e.getMessage()); return; }

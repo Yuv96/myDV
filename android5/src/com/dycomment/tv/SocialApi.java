@@ -48,7 +48,7 @@ public final class SocialApi {
         return requestAt("https://www.douyin.com",path,values,post,session);
     }
     static JSONObject requestAt(String origin,String path,Map<String,String> values,boolean post,String session) throws Exception {
-        if (session.isEmpty()) throw new Exception("请在返回菜单中设置自己的 Cookie");
+        if (session.isEmpty()) throw new Exception("请先扫码登录");
         Map<String,String> common = params("device_platform", "webapp", "aid", "6383", "channel", "channel_pc_web",
             "version_code", "170400", "version_name", "17.4.0", "cookie_enabled", "true");
         if (!post) common.putAll(values);
@@ -70,6 +70,7 @@ public final class SocialApi {
                 try (java.io.OutputStream out = c.getOutputStream()) { out.write(body); }
             }
             int http = c.getResponseCode();
+            if(http==401 || http==403) CredentialHealth.rejected(path,session,true);
             if (http != 200) throw new Exception("接口暂不可用（HTTP " + http + "）");
             JSONObject result;
             try (InputStream in = c.getInputStream()) {
@@ -81,11 +82,20 @@ public final class SocialApi {
                         out.write(buffer, 0, n);
                     }
                     try { result = new JSONObject(out.toString("UTF-8")); }
-                    catch (Exception e) { throw new Exception("接口未返回有效数据，请检查 Cookie 或稍后重试"); }
+                    catch (Exception e) { CredentialHealth.rejected(path,session,false); throw new Exception("接口未返回有效数据，请稍后重试"); }
                 }
             }
-            if (!result.has("status_code") || result.optInt("status_code", -1) != 0)
-                throw new Exception("接口未完成请求（状态 " + result.optInt("status_code", -1) + "），请检查 Cookie");
+            if (!result.has("status_code") || result.optInt("status_code", -1) != 0) {
+                CredentialHealth.rejected(path,session,result.optInt("status_code",-1)==8);
+                throw new Exception("接口未完成请求（状态 " + result.optInt("status_code", -1) + "），请重新扫码登录");
+            }
+            if(path.equals("/aweme/v1/web/comment/list/") && !result.has("comments")) {
+                CredentialHealth.rejected(path,session,false); throw new Exception("评论接口没有返回列表");
+            }
+            if(path.equals("/aweme/v1/web/user/profile/self/") && (result.optJSONObject("user")==null || result.optJSONObject("user").optString("uid").isEmpty())) {
+                CredentialHealth.rejected(path,session,false); throw new Exception("账号信息暂不可用");
+            }
+            CredentialHealth.success(path,session);
             return result;
         } finally { c.disconnect(); }
     }

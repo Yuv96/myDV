@@ -48,6 +48,23 @@ public final class PlaybackCoordinator {
             InteractionController.field(activity,"isInfoVisible",false);
         } catch(Exception ignored) {}
     }
+    public static void trimFeed(Activity a) {
+        if(a.isFinishing() || a.isDestroyed()) return;
+        try {
+            List<?> feed=(List<?>)InteractionController.field(a,"feedList");
+            int index=(Integer)InteractionController.field(a,"currentIndex");
+            int remove=Math.min(Math.max(0,index-50),Math.max(0,feed.size()-400));
+            if(remove>0) { feed.subList(0,remove).clear(); InteractionController.field(a,"currentIndex",index-remove); }
+        } catch(Exception ignored) {}
+    }
+    public static void destroy(Activity a) {
+        Object value=a.getWindow().getDecorView().getTag(TAG);
+        if(value instanceof PlaybackCoordinator) {
+            PlaybackCoordinator c=(PlaybackCoordinator)value; c.epoch++; c.waiting=false;
+            c.main.removeCallbacksAndMessages(null); c.deadline=null;
+            a.getWindow().getDecorView().setTag(TAG,null);
+        }
+    }
     public static int token(Activity a) { return get(a).epoch; }
     public static boolean valid(Activity a,int token) {
         return !a.isFinishing() && !a.isDestroyed() && get(a).epoch==token;

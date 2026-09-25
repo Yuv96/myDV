@@ -1,4 +1,4 @@
-name: Android 5.0 - software H264 and next-video cache
+name: 抖音抬头版 · Android 5.0 build and test
 on:
   workflow_dispatch:
   push:
@@ -29,15 +29,15 @@ jobs:
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android5.p12"
             echo "ANDROID5_KEYSTORE=$RUNNER_TEMP/android5.p12" >> "$GITHUB_ENV"
           fi
-      - name: Compile and sign API-21 APK
-        run: python3 android5/build.py
+      - name: Compile API-21 regression build
+        run: SELF_TEST=1 python3 android5/build.py
       - name: Verify manifest and packaged architectures
         run: |
           mkdir -p evidence
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist/*.apk > evidence/apk-info.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging dist-test/*.apk > evidence/apk-info.txt
           grep "sdkVersion:'21'" evidence/apk-info.txt
           grep "native-code:.*armeabi-v7a.*x86" evidence/apk-info.txt
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 21 dist/*.apk > evidence/signature.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 21 dist-test/*.apk > evidence/signature.txt
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -56,6 +56,10 @@ jobs:
         with:
           name: android5-player-evidence
           path: evidence/
+      - name: Build production APK without test pages or fixtures
+        run: python3 android5/build.py
+      - name: Verify production package
+        run: python3 android5/verify_release.py
       - uses: actions/upload-artifact@v4
         with:
           name: android5-player-apk

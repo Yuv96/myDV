@@ -14,6 +14,17 @@ public final class InteractionSelfTestActivity extends Activity {
     @Override public void onCreate(Bundle b) {
         super.onCreate(b); TextView result = new TextView(this); setContentView(result);
         try {
+            require(QrSession.allowed(new java.net.URL("https://login.douyin.com/path")),"official QR origin");
+            require(!QrSession.allowed(new java.net.URL("https://douyin.com.evil.example/path")),"no credential relay");
+            require(!QrSession.allowed(new java.net.URL("http://www.douyin.com/path")),"no plaintext login redirect");
+            require(!QrSession.allowed(new java.net.URL("https://evil@www.douyin.com/path")),"no userinfo login redirect");
+            require(CredentialStore.value("a=1; msToken=x=y; sessionid=s","msToken").equals("x=y"),"Cookie token preserves equals");
+            require(!CredentialStore.hasSession("msToken=not-a-login"),"SDK token alone is not login");
+            CredentialHealth.Window failures=new CredentialHealth.Window();
+            require(!failures.record(1000) && !failures.record(1001) && failures.count==1,"do not count bursts as expiry");
+            require(!failures.record(11000) && failures.record(21000),"repeated spaced failures prompt refresh");
+            require(!failures.record(400000) && failures.count==1,"failure window resets");
+            require(!new VideoProxyServer().isReady(),"no obsolete local playback proxy");
             int unread = SocialApi.parseUnread(new JSONObject("{\"notice_count\":[{\"group\":1,\"count\":2},{\"group\":2,\"count\":1},{\"group\":1,\"count\":2}]}"));
             require(unread == 3, "unread deduplication");
             require(SocialApi.parseUnread(new JSONObject("{\"notice_count\":[]}")) == 0, "zero unread");
