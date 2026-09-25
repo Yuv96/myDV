@@ -56,7 +56,7 @@
 
 ## 反馈与联系
 
-当前仓库的正式反馈入口为 [GitHub Issues](https://github.com/Yuv96/myDV/issues)。反馈请提供版本、电视型号、Android 版本和复现步骤，不要上传 Cookie、Token 或个人消息内容。
+项目维护入口为 [当前 GitHub 仓库](https://github.com/Yuv96/myDV)。该仓库目前未启用 Issues / Discussions，因此不展示不可用的反馈链接，也不臆造邮箱或群号。仓库内已提供反馈模板，启用 Issues 后即可使用。反馈时请勿上传 Cookie、Token 或个人消息内容。
 
 ## 许可证与来源
 
