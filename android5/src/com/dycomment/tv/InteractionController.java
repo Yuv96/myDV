@@ -140,6 +140,15 @@ public final class InteractionController {
         panel.rows[2].setText(state.collected == 1 ? "已收藏" : "收藏");
     }
     void select(int action) {
+        // With menu-pausing disabled, autoplay may change the video behind this panel.
+        // Require a fresh choice instead of applying an action to the previous author/video.
+        try {
+            List<?> feed = (List<?>) field(activity, "feedList");
+            int index = (Integer) field(activity, "currentIndex");
+            if (index < 0 || index >= feed.size() || feed.get(index) != item) {
+                close(false); quick(); toast("视频已切换，请重新选择"); return;
+            }
+        } catch (Exception e) { toast("无法确认当前视频，请重新打开菜单"); return; }
         if (action == 3) {
             if (secUid.isEmpty()) { toast("无法获取作者主页"); return; }
             close(false);
