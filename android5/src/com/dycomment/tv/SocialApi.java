@@ -4,6 +4,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import android.util.JsonReader;
+import android.util.JsonToken;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -65,21 +68,66 @@ public final class SocialApi {
             }
             int http = c.getResponseCode();
             if (http != 200) throw new Exception("接口暂不可用（HTTP " + http + "）");
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            JSONObject result;
             try (InputStream in = c.getInputStream()) {
-                byte[] buffer = new byte[16384]; int n;
-                while ((n = in.read(buffer)) != -1) {
-                    if (out.size() + n > 16 * 1024 * 1024) throw new Exception("响应过大，请稍后重试");
-                    out.write(buffer, 0, n);
+                if (path.equals("/webcast/web/feed/follow/")) result = readLiveResponse(in);
+                else {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] buffer = new byte[16384]; int n;
+                    while ((n = in.read(buffer)) != -1) {
+                        if (out.size() + n > 4 * 1024 * 1024) throw new Exception("响应过大，请稍后重试");
+                        out.write(buffer, 0, n);
+                    }
+                    try { result = new JSONObject(out.toString("UTF-8")); }
+                    catch (Exception e) { throw new Exception("接口未返回有效数据，请检查 Cookie 或稍后重试"); }
                 }
             }
-            JSONObject result;
-            try { result = new JSONObject(out.toString("UTF-8")); }
-            catch (Exception e) { throw new Exception("接口未返回有效数据，请检查 Cookie 或稍后重试"); }
             if (!result.has("status_code") || result.optInt("status_code", -1) != 0)
                 throw new Exception("接口未完成请求（状态 " + result.optInt("status_code", -1) + "），请检查 Cookie");
             return result;
         } finally { c.disconnect(); }
+    }
+    // Followed-live responses can contain megabytes of unrelated room metadata.
+    // Stream and discard it rather than retaining the response plus a full JSON tree on old TVs.
+    static JSONObject readLiveResponse(InputStream in) throws Exception {
+        InputStream bounded = new java.io.FilterInputStream(in) {
+            int count;
+            void add(int n) throws java.io.IOException {
+                if (n > 0 && (count += n) > 16 * 1024 * 1024) throw new java.io.IOException("直播响应过大");
+            }
+            @Override public int read() throws java.io.IOException { int n = in.read(); if (n != -1) add(1); return n; }
+            @Override public int read(byte[] b, int o, int n) throws java.io.IOException { int size = in.read(b, o, n); add(size); return size; }
+        };
+        try (JsonReader reader = new JsonReader(new InputStreamReader(bounded, "UTF-8"))) {
+            Object result = compactLive(reader, 0);
+            if (!(result instanceof JSONObject)) throw new Exception("直播数据格式异常");
+            return (JSONObject) result;
+        }
+    }
+    static final Set<String> LIVE_FIELDS = new HashSet<>(java.util.Arrays.asList("data", "room", "is_recommend", "id_str", "title",
+        "owner", "nickname", "sec_uid", "follow_info", "follow_status", "stream_url", "hls_pull_url_map", "flv_pull_url", "hls_pull_url",
+        "SD1", "HD1", "SD2", "FULL_HD1", "status_code"));
+    static Object compactLive(JsonReader r, int depth) throws Exception {
+        if (depth > 12) throw new Exception("直播数据层级异常");
+        JsonToken token = r.peek();
+        if (token == JsonToken.BEGIN_OBJECT) {
+            JSONObject o = new JSONObject(); r.beginObject();
+            while (r.hasNext()) {
+                String name = r.nextName();
+                if (LIVE_FIELDS.contains(name)) o.put(name, compactLive(r, depth + 1)); else r.skipValue();
+            }
+            r.endObject(); return o;
+        }
+        if (token == JsonToken.BEGIN_ARRAY) {
+            JSONArray a = new JSONArray(); r.beginArray();
+            while (r.hasNext()) {
+                if (a.length() >= 2000) throw new Exception("直播列表过大");
+                a.put(compactLive(r, depth + 1));
+            }
+            r.endArray(); return a;
+        }
+        if (token == JsonToken.NULL) { r.nextNull(); return JSONObject.NULL; }
+        if (token == JsonToken.BOOLEAN) return r.nextBoolean();
+        return r.nextString();
     }
     static final class State {
         int liked = -1, collected = -1, followed = -1;

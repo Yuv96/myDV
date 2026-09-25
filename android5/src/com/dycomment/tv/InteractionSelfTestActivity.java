@@ -23,6 +23,8 @@ public final class InteractionSelfTestActivity extends Activity {
             String room = "{\"id_str\":\"123\",\"owner\":{\"nickname\":\"测试作者\",\"follow_info\":{\"follow_status\":1}},\"stream_url\":{\"hls_pull_url_map\":{\"SD1\":\"https://example.com/sd.m3u8\",\"FULL_HD1\":\"https://example.com/hd.m3u8\"}}}";
             List<SocialApi.Live> lives = SocialApi.parseLive(new JSONObject("{\"data\":{\"data\":[{\"room\":" + room + ",\"is_recommend\":1},{\"room\":" + room + ",\"is_recommend\":0},{\"room\":" + room + ",\"is_recommend\":0}]}}"));
             require(lives.size() == 1 && lives.get(0).stream.endsWith("sd.m3u8"), "follow-only live and older-TV resolution");
+            JSONObject compact = SocialApi.readLiveResponse(new java.io.ByteArrayInputStream(("{\"status_code\":0,\"discarded\":{\"large_metadata\":[]},\"data\":{\"data\":[{\"room\":" + room + "}]}}").getBytes("UTF-8")));
+            require(!compact.has("discarded") && compact.optInt("status_code", -1) == 0 && SocialApi.parseLive(compact).size() == 1, "streamed live metadata filtering");
             final int[] selected = {-1}, cancelled = {0}, menu = {0};
             ModernMenuHelper.Panel panel = ModernMenuHelper.show(this, "互动测试", new String[]{"喜欢", "关注", "收藏", "主页", "分享"},
                 true, true, i -> selected[0] = i, () -> cancelled[0]++, () -> menu[0]++);

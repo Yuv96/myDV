@@ -1,6 +1,8 @@
-# Android 5.0 播放兼容补丁
+# Android 5.0 播放与交互兼容补丁
 
-上游公开仓库不包含 Android 工程。本目录以 SHA-256 固定的官方 Lite 1.1.9 APK 为输入，保留原 UI、数据接口及资源，替换 `PlayerView`，添加 `NextVideoCache`，通过 Apktool + javac + D8 重建。没有降低声明版本来掩盖新 API，最低系统保持 API 21。
+上游公开仓库不包含 Android 工程。本目录以 SHA-256 固定的官方 Lite 1.1.9 APK 为输入，通过 Apktool + javac + D8 重建。a5.1 替换 `PlayerView` 并添加 `NextVideoCache`；a5.2 保留这两者，增加纯文字菜单、遥控器互动面板、关注直播及未读通知提示。没有降低声明版本来掩盖新 API，最低系统保持 API 21。
+
+a5.2 的功能范围、验证方法和未完成事项见 [INTERACTION-NOTES.md](INTERACTION-NOTES.md)。好友分享暂未接通，未读数暂不包含私信。点赞、关注、收藏写操作仍需实际使用验证，开发验证没有代替用户执行这些账号操作。
 
 原 `PlayerView.openVideo()` 每次释放并创建系统 `android.media.MediaPlayer`；`MainActivity.playAt()` 在切换时调用它。原 `loadMoreFeed()` 仅预取视频列表，`VideoProxyServer` 只转发当前视频的网络字节，没有下一条内容缓存。
 

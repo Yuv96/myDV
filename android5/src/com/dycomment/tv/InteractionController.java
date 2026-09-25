@@ -27,7 +27,7 @@ public final class InteractionController {
     Object item;
     String id = "", secUid = "", session = "";
     int generation;
-    boolean busy, resumePlayback;
+    boolean busy, stateLoading, resumePlayback;
     long lastUnread;
     int unread = -1;
     boolean unreadLoading;
@@ -63,7 +63,7 @@ public final class InteractionController {
         invoke("pauseForMenu"); showing(true);
     }
     void close(boolean resume) {
-        generation++; busy = false;
+        generation++; busy = false; stateLoading = false;
         if (panel != null) panel.close(false);
         panel = null; showing(false);
         if (resume && resumePlayback) invoke("resumeFromMenu");
@@ -104,7 +104,7 @@ public final class InteractionController {
             if (index < 0 || index >= feed.size()) { toast("请等待视频加载"); return; }
             item = feed.get(index); id = text(item, "awemeId"); secUid = text(item, "secUid");
         } catch (Exception e) { toast("当前视频暂不可用"); return; }
-        pause(); generation++; state = null; busy = false; session = SocialApi.cookie();
+        pause(); generation++; state = null; busy = false; stateLoading = false; session = SocialApi.cookie();
         panel = ModernMenuHelper.show(activity, "与作者互动", new String[]{"喜欢", "关注", "收藏", "主页", "分享"},
             true, true, this::select, () -> close(true), this::comments);
         loadState();
@@ -117,14 +117,15 @@ public final class InteractionController {
             && panel != null && !panel.closed && cookie.equals(SocialApi.cookie());
     }
     void loadState() {
-        if (!SocialApi.personalCookie()) return;
+        if (!SocialApi.personalCookie() || stateLoading) return;
+        stateLoading = true;
         final int token = generation; final String video = id, author = secUid, cookie = session;
         SocialApi.WORK.execute(() -> {
             try {
                 final SocialApi.State result = SocialApi.state(video, author, cookie);
-                handler.post(() -> { if (active(token, cookie)) { state = result; labels(); } });
+                handler.post(() -> { if (active(token, cookie)) { stateLoading = false; state = result; labels(); } });
             } catch (Exception e) {
-                handler.post(() -> { if (active(token, cookie)) toast("互动状态读取失败，点击选项可重试"); });
+                handler.post(() -> { if (active(token, cookie)) { stateLoading = false; toast("互动状态读取失败，点击选项可重试"); } });
             }
         });
     }
