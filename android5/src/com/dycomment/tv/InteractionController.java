@@ -111,6 +111,10 @@ public final class InteractionController {
     }
     void comments() {
         close(false); invoke("showComments");
+        try {
+            View comments = (View) field(activity, "commentOverlay");
+            if (comments != null) comments.setId(activity.getResources().getIdentifier("android5_comments_panel", "id", activity.getPackageName()));
+        } catch (Exception ignored) {}
     }
     boolean active(int token, String cookie) {
         return !activity.isFinishing() && !activity.isDestroyed() && token == generation

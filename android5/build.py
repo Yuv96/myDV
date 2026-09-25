@@ -86,6 +86,9 @@ text=text.replace('package="com.dycomment.tv"','package="com.dycomment.tv.androi
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.PlaybackSelfTestActivity" android:exported="true" />\n    </application>')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.FollowedLiveActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.InteractionSelfTestActivity" android:exported="true" />\n</application>')
 manifest.write_text(text)
+ids=decoded/'res/values/ids.xml'
+names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel'] + [f'android5_menu_row_{i}' for i in range(32)]
+ids.write_text(ids.read_text().replace('</resources>', ''.join(f'<id name="{name}" />\n' for name in names)+'</resources>'))
 config=decoded/'apktool.yml'; text=config.read_text().replace('versionCode: 9','versionCode: 1002').replace('versionName: 1.1.9','versionName: 1.1.9-a5.2')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)

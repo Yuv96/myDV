@@ -76,6 +76,7 @@ public final class ModernMenuHelper {
         Panel(Activity a, String title, String[] labels, boolean large, boolean keepOpen,
               OnItemSelectedListener selected, OnCancelListener cancel, Runnable menu) {
             super(a); this.cancel = cancel; this.menu = menu;
+            setId(a.getResources().getIdentifier(large ? "android5_interaction_panel" : "android5_menu_panel", "id", a.getPackageName()));
             previousFocus = a.getCurrentFocus();
             setTag("android5-menu"); setFocusable(true); setClickable(true);
             setBackgroundColor(0x80000000);
@@ -99,6 +100,7 @@ public final class ModernMenuHelper {
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 TextView row = new TextView(a); rows[i] = row;
+                row.setId(a.getResources().getIdentifier("android5_menu_row_" + i, "id", a.getPackageName()));
                 row.setText(labels[i]); row.setTextColor(Color.WHITE); row.setTextSize(large ? 32 : 20);
                 row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(a, 18), dp(a, 10), dp(a, 10), dp(a, 10));
                 row.setFocusable(true); row.setClickable(true); row.setSingleLine(true);
