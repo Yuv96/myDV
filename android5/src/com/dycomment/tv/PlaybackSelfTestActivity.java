@@ -83,7 +83,17 @@ public final class PlaybackSelfTestActivity extends Activity {
                     fail("portrait not centered"); return;
                 }
                 float aspect=(float)surface.getWidth()/surface.getHeight();
-                if(Math.abs(aspect-360f/640f)>0.025f) { fail("portrait aspect "+aspect); return; }
+                try {
+                    org.videolan.libvlc.MediaPlayer nativePlayer=(org.videolan.libvlc.MediaPlayer)InteractionController.field(view,"player");
+                    org.videolan.libvlc.interfaces.IMedia.VideoTrack track=nativePlayer.getCurrentVideoTrack();
+                    if(track==null || track.width!=360 || track.height!=640) { fail("portrait track dimensions"); return; }
+                    boolean nativeLayout=(Integer)InteractionController.field(view,"videoWidth")==0;
+                    if(nativeLayout) {
+                        if(surface.getWidth()!=view.getWidth() || surface.getHeight()!=view.getHeight() || nativePlayer.getScale()!=0)
+                            { fail("OpenGL must fit inside full centered surface"); return; }
+                    } else if(Math.abs(aspect-360f/640f)>0.025f) { fail("portrait aspect "+aspect); return; }
+                    Log.i("Android5SelfTest","PORTRAIT_LAYOUT native="+nativeLayout+" track="+track.width+"x"+track.height);
+                } catch(Exception e) { fail("portrait layout inspection"); return; }
                 Log.i("Android5SelfTest","PASS API21_H264_HIGH_BASELINE_VIDEO_OUTPUT_CACHE_PAUSE_SEEK_RATE_PORTRAIT_CENTER");
                 stage=6; return;
             }

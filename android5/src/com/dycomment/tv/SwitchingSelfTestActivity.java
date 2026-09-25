@@ -135,7 +135,11 @@ public final class SwitchingSelfTestActivity extends Activity implements Applica
                     Log.i("Android5SwitchTest","SWITCHING_OK heartbeat_ms="+worstGap+" heap_growth="+growth);
                     View author=(View)field("tvAuthor"), stats=(View)field("tvStats");
                     if(author.getParent()!=stats.getParent() || stats.getBackground()!=null) throw new Exception("metadata card hierarchy");
-                    if(((View)field("infoOverlay")).getBackground()==null) throw new Exception("missing single material card");
+                    if(((View)author.getParent().getParent()).getBackground()==null) throw new Exception("missing text material card");
+                    View avatar=(View)field("ivAuthorAvatar"), overlay=(View)field("infoOverlay");
+                    if(overlay.getBackground()!=null || avatar.getParent()==author.getParent().getParent()) throw new Exception("avatar must be outside card");
+                    int margin=((android.view.ViewGroup.MarginLayoutParams)overlay.getLayoutParams()).bottomMargin;
+                    if(margin<ModernMenuHelper.dp(feed,48)) throw new Exception("missing bottom safe space");
                     stage=6; stageAt=now; outputs=0; beforeReturn=player.getCurrentPosition();
                     nativeGeneration=(Integer)InteractionController.field(player,"generation");
                     feed.startActivity(new Intent(feed,SurfaceCoverTestActivity.class));

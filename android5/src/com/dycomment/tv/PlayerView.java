@@ -138,6 +138,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             break;
         case org.videolan.libvlc.MediaPlayer.Event.Vout:
             if(e.getVoutCount()>0) {
+                fitVideo();
                 videoOutput=true; stalledAt=0;
                 PlaybackCoordinator.ready(getContext());
                 if(wantPlay && buffer>=100) cache.scheduleNext(getContext());
@@ -256,9 +257,16 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     protected void onSizeChanged(int w,int h,int oldW,int oldH) { super.onSizeChanged(w,h,oldW,oldH); fitVideo(); }
     private void fitVideo() {
         int w=getWidth(), h=getHeight();
-        if(w<=0 || h<=0 || videoWidth<=0 || videoHeight<=0) return;
+        if(w<=0 || h<=0) return;
         if(player!=null) {
             player.getVLCVout().setWindowSize(w,h);
+        }
+        if(videoWidth<=0 || videoHeight<=0) {
+            // OpenGL vout reports zero layout dimensions and handles letterboxing
+            // itself. Keep its surface and window in sync after every resize.
+            surface.setLayoutParams(new LayoutParams(-1,-1,Gravity.CENTER));
+            if(player!=null) { player.setAspectRatio(null); player.setScale(0); }
+            return;
         }
         float ratio=(float)videoWidth*sarNum/((float)videoHeight*sarDen);
         if((float)w/h>ratio) w=Math.round(h*ratio); else h=Math.round(w/ratio);

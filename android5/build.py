@@ -184,7 +184,8 @@ for key in ['background','paddingTop','paddingBottom','paddingStart','paddingEnd
 stats.set(a+'layout_marginStart','12dp'); stats.set(a+'layout_width','0dp'); stats.set(a+'layout_weight','1'); stats.set(a+'textSize','12sp')
 header.extend([author,stats]); column.insert(0,header)
 for key in ['paddingBottom','paddingStart','paddingEnd']: card.attrib.pop(a+key,None)
-card.set(a+'padding','12dp'); card.set(a+'layout_margin','14dp'); card.set(a+'background','@drawable/android5_video_card')
+card.set(a+'padding','0dp'); card.set(a+'layout_marginStart','18dp'); card.set(a+'layout_marginEnd','18dp'); card.set(a+'layout_marginBottom','48dp')
+column.set(a+'padding','12dp'); column.set(a+'background','@drawable/android5_video_card')
 column[1].set(a+'textColor','#e6ffffff')
 tree.write(layout,encoding='utf-8',xml_declaration=True)
 (decoded/'res/drawable/android5_video_card.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
