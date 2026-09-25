@@ -2,11 +2,13 @@
 
 最低系统保持 **Android 5.0 / API 21**。新版基于 Lite 1.1.9，使用 LibVLC 软件解码修复旧系统 H.264 播放路径，并增加下一条 MP4 预缓存。
 
-**[下载 1.1.9-a5.3 APK](https://github.com/Yuv96/myDV/releases/download/android5-switching-v3/myDV-Android5-1.1.9-a5.3.apk)** · [发布说明](https://github.com/Yuv96/myDV/releases/tag/android5-switching-v3) · [构建与播放测试](https://github.com/Yuv96/myDV/actions/workflows/android5-player.yml)
+**[下载 1.1.9-a5.4 APK](https://github.com/Yuv96/myDV/releases/download/android5-ui-return-v4/myDV-Android5-1.1.9-a5.4.apk)** · [发布说明](https://github.com/Yuv96/myDV/releases/tag/android5-ui-return-v4) · [构建与播放测试](https://github.com/Yuv96/myDV/actions/workflows/android5-player.yml)
+
+a5.4 修复返回作者主页后的画面绑定与解码恢复，加入直播预览图和居中适配。左侧头像独立，右侧一块半透明资料卡包含昵称、数据和简介，整组距底部 48dp；通知数每 30 秒刷新。新增好友视频卡片分享入口，发送仍待实际验证；私信总数未接通，真实直播弹幕待验证。详见 [本轮更新说明](android5/UI-RETURN-NOTES.md)。
 
 a5.3 修复慢网络下快速往返切换的界面阻塞、旧请求覆盖和底栏提前变化，加载超时可按上/下切换或确定键重试。超大视频跳过整条预下载，后台缓存增加限时、限速与取消控制；详见 [切换修复说明](android5/SWITCHING-NOTES.md)。
 
-a5.2 保留已修复的播放与缓存：菜单键打开纯文字大号互动面板，再按菜单键打开评论；返回键打开弹幕、倍速等设置。新增关注直播列表及 `时间 | +N` 未读通知提示。已接入喜欢、关注、收藏状态与操作，真实写操作仍需电视实测；**好友快速分享暂未接通，角标暂不包含私信未读数**。功能范围见 [交互更新说明](android5/INTERACTION-NOTES.md)。与 a5.1 同包名、同签名，可覆盖更新；新账号功能使用电视里导入的个人 Cookie。
+a5.2 保留已修复的播放与缓存：菜单键打开纯文字大号互动面板，再按菜单键打开评论；返回键打开弹幕、倍速等设置。新增关注直播列表及 `时间 | +N` 未读通知提示。已接入喜欢、关注、收藏状态与操作，真实写操作仍需电视实测；**a5.4 已新增好友分享入口但发送待验证，角标暂不包含私信未读数**。功能范围见 [交互更新说明](android5/INTERACTION-NOTES.md)。与 a5.1 同包名、同签名，可覆盖更新；新账号功能使用电视里导入的个人 Cookie。
 
 已在 API 21 x86 模拟器验证 H.264 High/Baseline 视频输出、播放进度、下一条提前下载和切换后的缓存命中，也观察到在线推荐视频正常出画面。电视实机、个人账号、直播等仍需实际验证。建议老电视先使用默认 720p。
 
