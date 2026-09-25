@@ -35,23 +35,23 @@ if grep -q 'FATAL EXCEPTION' evidence/live.txt; then exit 1; fi
 adb shell dumpsys activity activities | grep mResumedActivity | grep com.dycomment.tv.android5
 adb shell input keyevent 82
 sleep 2
-adb shell uiautomator dump /sdcard/quick.xml
-adb pull /sdcard/quick.xml evidence/quick.xml
+adb shell uiautomator dump /data/local/tmp/quick.xml
+adb pull /data/local/tmp/quick.xml evidence/quick.xml
 grep -q 'text="主页"' evidence/quick.xml
 grep -q 'text="分享"' evidence/quick.xml
 adb exec-out screencap -p > evidence/quick-menu.png
 adb shell input keyevent 82
 sleep 2
-adb shell uiautomator dump /sdcard/comments.xml
-adb pull /sdcard/comments.xml evidence/comments.xml
+adb shell uiautomator dump /data/local/tmp/comments.xml
+adb pull /data/local/tmp/comments.xml evidence/comments.xml
 grep -q '评论' evidence/comments.xml
 adb exec-out screencap -p > evidence/comments-menu.png
 adb shell input keyevent 4
 sleep 1
 adb shell input keyevent 4
 sleep 2
-adb shell uiautomator dump /sdcard/settings.xml
-adb pull /sdcard/settings.xml evidence/settings.xml
+adb shell uiautomator dump /data/local/tmp/settings.xml
+adb pull /data/local/tmp/settings.xml evidence/settings.xml
 grep -q '播放与设置' evidence/settings.xml
 grep -q '关注的直播' evidence/settings.xml
 adb exec-out screencap -p > evidence/settings-menu.png
