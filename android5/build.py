@@ -37,6 +37,15 @@ replacement='''.method public synthetic lambda$onCreate$0$com-dycomment-tv-MainA
     return-void
 .end method'''
 text,n=re.subn(pattern,lambda _:replacement,text); assert n==1
+text,n=re.subn(r'(?ms)^\.method private applySpeed\(\)V\n.*?^\.end method', '''.method private applySpeed()V
+    .locals 2
+    iget-object v0, p0, Lcom/dycomment/tv/MainActivity;->videoView:Lcom/dycomment/tv/PlayerView;
+    if-eqz v0, :done
+    iget v1, p0, Lcom/dycomment/tv/MainActivity;->playbackSpeed:F
+    invoke-virtual {v0, v1}, Lcom/dycomment/tv/PlayerView;->setPlaybackSpeed(F)V
+    :done
+    return-void
+.end method''',text); assert n==1
 main.write_text(text)
 # Avoid offering upstream APKs with a different package/signature as updates.
 updater=package/'UpdateHelper.smali'
@@ -55,6 +64,8 @@ manifest.write_text(text)
 config=decoded/'apktool.yml'; text=config.read_text().replace('versionCode: 9','versionCode: 1001').replace('versionName: 1.1.9','versionName: 1.1.9-a5.1')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
+shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
+shutil.copy(ROOT/'README.md',assets/'ANDROID5-SOURCES.md')
 for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'baseline')]:
     run('ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i',f'testsrc2=size={width}x{height}:rate=25',
         '-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','16','-c:v','libx264','-preset','veryfast','-crf','30',
@@ -87,5 +98,6 @@ os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)
 shutil.copy(bindings,DIST/bindings.name)
+shutil.copy(ROOT/'LIBVLC-LICENSE.txt',DIST/'LIBVLC-LICENSE.txt')
 (DIST/'SHA256SUMS.txt').write_text(hashlib.sha256(apk.read_bytes()).hexdigest()+'  '+apk.name+'\n')
 print('BUILT',apk)
