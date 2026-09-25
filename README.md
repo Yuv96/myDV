@@ -1,3 +1,17 @@
+# Android 5.0 TV 安装包
+
+本 Fork 提供原项目发布的 **myDV Lite 1.1.9**，最低系统 Android 5.0 / API 21。APK 保留原始签名和全部字节，支持 TV 启动入口且不要求触摸屏。
+
+**[下载 APK](https://github.com/Yuv96/myDV/releases/download/android5-lite-v1.1.9/myDV-Lite-1.1.9-android5.apk)** · [发布说明和校验值](https://github.com/Yuv96/myDV/releases/tag/android5-lite-v1.1.9) · [验证记录](https://github.com/Yuv96/myDV/actions/workflows/android5-lite.yml)
+
+自动流程会先核对上游 SHA-256、签名和最低系统版本，再在 Android 5.0 API 21 模拟器安装、启动并发送方向键；检查通过才发布 APK 和截图。无需自行编译，下载后复制到电视安装即可。
+
+这是原项目另一个开发者提供的 Lite 版，与最新完整版的功能不同。本次没有重新编译完整版：公开仓库不含 Android 工程，原构建依赖不可访问的 `myDV-Internal`。模拟器检查不覆盖账号登录、实时视频/直播服务或具体电视硬件，相关功能须实际联网确认。
+
+来源：[上游 V1.1.9 发布](https://github.com/mytv-android/myDV/releases/tag/V1.1.9)，文件 `myDV.Lite_1.1.9.apk`；SHA-256：`c01f3b93a7c0b97e481f9f9706a1ff9bc91c3431000be13695b1ca9ffcad69fa`。
+
+---
+
 <div align="center">
     <h1>my Debug Video<sup>TV</sup></h1>
 
