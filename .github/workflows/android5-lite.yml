@@ -1,0 +1,141 @@
+name: Android 5.0 Lite - verify and publish
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/android5-lite.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android5-lite
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download original signed Lite APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist evidence
+          curl --fail --location --retry 3 \
+            https://github.com/mytv-android/myDV/releases/download/V1.1.9/myDV.Lite_1.1.9.apk \
+            -o dist/myDV-Lite-1.1.9-android5.apk
+          echo 'c01f3b93a7c0b97e481f9f9706a1ff9bc91c3431000be13695b1ca9ffcad69fa  myDV-Lite-1.1.9-android5.apk' > dist/SHA256SUMS.txt
+          (cd dist && sha256sum --check SHA256SUMS.txt)
+          SDK_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$SDK_TOOLS/apksigner" verify --verbose --print-certs --min-sdk-version 21 dist/*.apk | tee evidence/signature.txt
+          "$SDK_TOOLS/aapt" dump badging dist/*.apk | tee evidence/apk-info.txt
+          grep -q "sdkVersion:'21'" evidence/apk-info.txt
+          grep -q 'android.intent.category.LEANBACK_LAUNCHER' <("$SDK_TOOLS/aapt" dump xmltree dist/*.apk AndroidManifest.xml)
+          cat > smoke.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 21
+          adb shell getprop ro.build.version.release > evidence/android-version.txt
+          adb install -r dist/myDV-Lite-1.1.9-android5.apk | tee evidence/install.txt
+          grep -q Success evidence/install.txt
+          adb logcat -c
+          adb shell am start -W -n com.dycomment.tv/.MainActivity | tee evidence/start.txt
+          grep -q 'Status: ok' evidence/start.txt
+          sleep 15
+          adb shell dumpsys activity activities > evidence/activity.txt
+          grep 'mResumedActivity' evidence/activity.txt | grep -q com.dycomment.tv
+          adb shell ps | grep com.dycomment.tv
+          adb exec-out screencap -p > evidence/android5-launch.png
+          adb shell input keyevent 20
+          adb shell input keyevent 22
+          adb shell input keyevent 19
+          adb shell input keyevent 21
+          sleep 5
+          adb shell ps | grep com.dycomment.tv
+          adb logcat -d > evidence/logcat.txt
+          if grep -E 'FATAL EXCEPTION|ANR in com.dycomment.tv' evidence/logcat.txt; then
+            exit 1
+          fi
+          adb exec-out screencap -p > evidence/android5-dpad.png
+          printf '%s\n' 'PASS: API 21 install, foreground launch and directional-key smoke test.' > evidence/RESULT.txt
+          SCRIPT
+          chmod +x smoke.sh
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch on Android 5.0 API 21
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 21
+          target: default
+          arch: x86
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash smoke.sh
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android5-verification
+          path: evidence/
+      - name: Prepare release assets
+        run: |
+          cp evidence/android5-launch.png evidence/RESULT.txt dist/
+          cat > dist/RELEASE-NOTES.md <<'NOTES'
+          # myDV Lite 1.1.9 — Android 5.0
+
+          原项目正式发布中的 Lite APK，保留原始签名及全部字节；本仓库负责校验、API 21 模拟器验证和分发，没有重新编译或修改原程序。
+
+          上游来源：https://github.com/mytv-android/myDV/releases/tag/V1.1.9
+          包名：com.dycomment.tv；最低 Android 5.0 / API 21；含 TV 启动入口，不要求触摸屏，无特定 CPU 原生库限制。
+
+          已通过 GitHub Actions 的 Android 5.0 API 21 安装、前台启动、方向键及启动期间无崩溃检查。见附件启动截图和 RESULT.txt。
+
+          验证范围：未登录个人抖音账号，未验证实时推荐、搜索、直播、视频播放或具体电视硬件。Lite 与最新完整版功能不同，网络接口能否使用需实际联网确认。
+
+          下载 myDV-Lite-1.1.9-android5.apk，复制到电视并允许文件管理器安装应用。SHA256SUMS.txt 可用于校验。
+
+          SHA-256: c01f3b93a7c0b97e481f9f9706a1ff9bc91c3431000be13695b1ca9ffcad69fa
+          NOTES
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android5-release
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android5-release
+          path: dist
+      - name: Publish verified APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=android5-lite-v1.1.9
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file dist/RELEASE-NOTES.md
+          else
+            gh release create "$TAG" dist/* \
+              --target '${{ github.sha }}' \
+              --title 'myDV Lite 1.1.9 - Android 5.0 verified' \
+              --notes-file dist/RELEASE-NOTES.md
+          fi
