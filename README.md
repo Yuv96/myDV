@@ -2,7 +2,9 @@
 
 最低系统保持 **Android 5.0 / API 21**。新版基于 Lite 1.1.9，使用 LibVLC 软件解码修复旧系统 H.264 播放路径，并增加下一条 MP4 预缓存。
 
-**[下载 1.1.9-a5.2 APK](https://github.com/Yuv96/myDV/releases/download/android5-interaction-v2/myDV-Android5-1.1.9-a5.2.apk)** · [发布说明](https://github.com/Yuv96/myDV/releases/tag/android5-interaction-v2) · [构建与播放测试](https://github.com/Yuv96/myDV/actions/workflows/android5-player.yml)
+**[下载 1.1.9-a5.3 APK](https://github.com/Yuv96/myDV/releases/download/android5-switching-v3/myDV-Android5-1.1.9-a5.3.apk)** · [发布说明](https://github.com/Yuv96/myDV/releases/tag/android5-switching-v3) · [构建与播放测试](https://github.com/Yuv96/myDV/actions/workflows/android5-player.yml)
+
+a5.3 修复慢网络下快速往返切换的界面阻塞、旧请求覆盖和底栏提前变化，加载超时可按上/下切换或确定键重试。超大视频跳过整条预下载，后台缓存增加限时、限速与取消控制；详见 [切换修复说明](android5/SWITCHING-NOTES.md)。
 
 a5.2 保留已修复的播放与缓存：菜单键打开纯文字大号互动面板，再按菜单键打开评论；返回键打开弹幕、倍速等设置。新增关注直播列表及 `时间 | +N` 未读通知提示。已接入喜欢、关注、收藏状态与操作，真实写操作仍需电视实测；**好友快速分享暂未接通，角标暂不包含私信未读数**。功能范围见 [交互更新说明](android5/INTERACTION-NOTES.md)。与 a5.1 同包名、同签名，可覆盖更新；新账号功能使用电视里导入的个人 Cookie。
 
