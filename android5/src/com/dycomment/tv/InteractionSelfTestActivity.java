@@ -25,6 +25,20 @@ public final class InteractionSelfTestActivity extends Activity {
             require(lives.size() == 1 && lives.get(0).stream.endsWith("sd.m3u8"), "follow-only live and older-TV resolution");
             JSONObject compact = SocialApi.readLiveResponse(new java.io.ByteArrayInputStream(("{\"status_code\":0,\"discarded\":{\"large_metadata\":[]},\"data\":{\"data\":[{\"room\":" + room + "}]}}").getBytes("UTF-8")));
             require(!compact.has("discarded") && compact.optInt("status_code", -1) == 0 && SocialApi.parseLive(compact).size() == 1, "streamed live metadata filtering");
+            JSONObject coverRoom=new JSONObject(room).put("cover",new JSONObject("{\"url_list\":[\"https://example.com/preview.jpg\"]}"));
+            JSONObject covered=SocialApi.readLiveResponse(new java.io.ByteArrayInputStream(("{\"status_code\":0,\"data\":{\"data\":[{\"room\":"+coverRoom+"}]}}").getBytes("UTF-8")));
+            require(SocialApi.parseLive(covered).get(0).preview.endsWith("preview.jpg"),"live preview preserved through streaming parser");
+            QuickShareApi.Page friends=QuickShareApi.parseFriends(new JSONObject("{\"user_list\":[{\"uid\":\"12\",\"nickname\":\"测试好友\"},{\"uid\":\"12\"}],\"cursor\":30,\"has_more\":true}"));
+            require(friends.friends.size()==1 && friends.more && friends.cursor.equals("30"),"friends paging and dedup");
+            JSONObject card=QuickShareApi.videoCard(new JSONObject("{\"aweme_id\":\"123\",\"desc\":\"测试视频\",\"author\":{\"uid\":\"9\"},\"video\":{}}"));
+            require(card.getInt("aweType")==800 && card.getString("itemId").equals("123") && !card.has("text"),"share is video card only");
+            Wire parsed=new Wire(new Wire.Out().number(1,Long.MAX_VALUE).text(2,"你好").done());
+            require(parsed.number(1,0)==Long.MAX_VALUE && parsed.text(2).equals("你好"),"protobuf preserves IDs and UTF8");
+            rejected=false; try { new Wire(new byte[]{18,9,1}); } catch(Exception e) { rejected=true; }
+            require(rejected,"truncated wire response rejected");
+            byte[] chat=new Wire.Out().bytes(2,new Wire.Out().text(3,"测试观众").done()).text(3,"测试弹幕").done();
+            byte[] event=new Wire.Out().text(1,"WebcastChatMessage").bytes(2,chat).number(3,123).done();
+            require(LiveChatController.chats(new Wire(new Wire.Out().bytes(1,event).done())).get(0).text.equals("测试观众：测试弹幕"),"live chat wire decoding");
             final int[] selected = {-1}, cancelled = {0}, menu = {0};
             ModernMenuHelper.Panel panel = ModernMenuHelper.show(this, "互动测试", new String[]{"喜欢", "关注", "收藏", "主页", "分享"},
                 true, true, i -> selected[0] = i, () -> cancelled[0]++, () -> menu[0]++);

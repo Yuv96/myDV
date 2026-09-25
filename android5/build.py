@@ -21,6 +21,7 @@ apktool=download('apktool.jar','https://github.com/iBotPeaches/Apktool/releases/
 vlc=download('libvlc.aar','https://repo.maven.apache.org/maven2/org/videolan/android/libvlc-all/3.7.6/libvlc-all-3.7.6.aar','6b438ab75eb3b307d9699f4594c043f46b0a9a697521bd03729c02c0a400eb8a')
 bindings=download('libvlc-3.7.6-sources.jar','https://repo.maven.apache.org/maven2/org/videolan/android/libvlc-all/3.7.6/libvlc-all-3.7.6-sources.jar','95bb03b150ca4cda5fb334b02df2e4f95c627940a1134f805161ab0146566a37')
 decoded=WORK/'decoded'
+shutil.rmtree(decoded,ignore_errors=True) # Apktool's old build cache must not survive a source rebuild.
 run('java','-jar',apktool,'d','-f',original,'-o',decoded)
 with zipfile.ZipFile(vlc) as z: z.extractall(WORK/'vlc')
 package=decoded/'smali/com/dycomment/tv'
@@ -131,6 +132,22 @@ for number in [26,29,30]:
     body=re.sub(r'(?ms)^\.method public (?:onLoaded|onResult|onError|synthetic lambda\$onResult)[^\n]*\n.*?^\.end method',guard,body)
     callback.write_text(body)
 
+# Replace the obsolete JSON chat/list endpoint with bounded read-only protobuf polling.
+for method, signature, target, args in [('startLiveDanmaku','Ljava/lang/String;','start','p0, p1'),('stopLiveDanmaku','','stop','p0')]:
+    pattern=rf'(?ms)^\.method private {method}\({signature}\)V\n.*?^\.end method'
+    replacement=f'''.method private {method}({signature})V
+    .locals 0
+    invoke-static {{{args}}}, Lcom/dycomment/tv/LiveChatController;->{target}(Landroid/app/Activity;{signature})V
+    return-void
+.end method'''
+    text,n=re.subn(pattern,lambda _:replacement,text); assert n==1,method
+
+# Lifecycle hooks keep the notification refresh independent of clock visibility.
+for method, target in [('onResume', 'resumed'), ('onPause', 'paused'), ('onDestroy', 'destroyed')]:
+    marker=f'    invoke-super {{p0}}, Landroid/app/Activity;->{method}()V'
+    assert text.count(marker)==1
+    text=text.replace(marker,marker+f'\n    invoke-static {{p0}}, Lcom/dycomment/tv/InteractionController;->{target}(Landroid/app/Activity;)V')
+
 main.write_text(text)
 # Avoid offering upstream APKs with a different package/signature as updates.
 updater=package/'UpdateHelper.smali'
@@ -147,16 +164,41 @@ text=text.replace('package="com.dycomment.tv"','package="com.dycomment.tv.androi
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.PlaybackSelfTestActivity" android:exported="true" />\n    </application>')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.FollowedLiveActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.InteractionSelfTestActivity" android:exported="true" />\n</application>')
 text=text.replace("</application>",'<activity android:name="com.dycomment.tv.SwitchingSelfTestActivity" android:exported="true" />\n</application>')
+text=text.replace('</application>','<activity android:name="com.dycomment.tv.QuickShareActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.SurfaceCoverTestActivity" android:exported="false" />\n</application>')
 manifest.write_text(text)
 ids=decoded/'res/values/ids.xml'
 names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel'] + [f'android5_menu_row_{i}' for i in range(32)]
 ids.write_text(ids.read_text().replace('</resources>', ''.join(f'<id name="{name}" />\n' for name in names)+'</resources>'))
-config=decoded/'apktool.yml'; text=config.read_text().replace('versionCode: 9','versionCode: 1003').replace('versionName: 1.1.9','versionName: 1.1.9-a5.3')
+# One API-21 translucent material card, with statistics on the author line.
+import xml.etree.ElementTree as ET
+ET.register_namespace('android','http://schemas.android.com/apk/res/android')
+a='{http://schemas.android.com/apk/res/android}'
+layout=decoded/'res/layout/activity_main.xml'; tree=ET.parse(layout)
+card=next(e for e in tree.iter() if e.get(a+'id')=='@id/infoOverlay')
+row=card[0]; column=row[1]; author=column[0]; stats=card[1]
+card.remove(stats); column.remove(author)
+header=ET.Element('LinearLayout',{a+'orientation':'horizontal',a+'gravity':'center_vertical',a+'layout_width':'match_parent',a+'layout_height':'wrap_content'})
+author.set(a+'layout_width','wrap_content'); author.set(a+'maxWidth','180dp'); author.set(a+'maxLines','1'); author.set(a+'ellipsize','end')
+for key in ['background','paddingTop','paddingBottom','paddingStart','paddingEnd','layout_marginTop']:
+    stats.attrib.pop(a+key,None)
+stats.set(a+'layout_marginStart','12dp'); stats.set(a+'layout_width','0dp'); stats.set(a+'layout_weight','1'); stats.set(a+'textSize','12sp')
+header.extend([author,stats]); column.insert(0,header)
+for key in ['paddingBottom','paddingStart','paddingEnd']: card.attrib.pop(a+key,None)
+card.set(a+'padding','12dp'); card.set(a+'layout_margin','14dp'); card.set(a+'background','@drawable/android5_video_card')
+column[1].set(a+'textColor','#e6ffffff')
+tree.write(layout,encoding='utf-8',xml_declaration=True)
+(decoded/'res/drawable/android5_video_card.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <corners android:radius="12dp" />
+  <gradient android:angle="90" android:startColor="#c018202b" android:endColor="#a0303945" />
+  <stroke android:width="1dp" android:color="#30ffffff" />
+</shape>''')
+config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1004').replace('versionName: 1.1.9','versionName: 1.1.9-a5.4')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
 shutil.copy(ROOT/'README.md',assets/'ANDROID5-SOURCES.md')
-for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'baseline')]:
+for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'baseline'),('baseline',360,640,'portrait')]:
     run('ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i',f'testsrc2=size={width}x{height}:rate=25',
         '-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','16','-c:v','libx264','-preset','veryfast','-crf','30',
         '-profile:v',profile,'-level:v','4.1' if profile=='high' else '3.0','-pix_fmt','yuv420p','-c:a','aac','-b:a','64k','-movflags','+faststart',assets/f'selftest-{name}.mp4')
@@ -183,7 +225,7 @@ password=os.environ.get('ANDROID5_KEYSTORE_PASSWORD','android5-build')
 if not pathlib.Path(keystore).exists():
     run('keytool','-genkeypair','-keystore',keystore,'-storetype','PKCS12','-storepass',password,'-keypass',password,
         '-alias','android5','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=myDV Android5 Community')
-apk=DIST/'myDV-Android5-1.1.9-a5.3.apk'
+apk=DIST/'myDV-Android5-1.1.9-a5.4.apk'
 os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)

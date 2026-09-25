@@ -56,7 +56,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     private OnInfoListener onInfo;
     private OnBufferingListener onBuffering;
     private long openedAt;
-    private int videoWidth, videoHeight, sarNum=1, sarDen=1;
+    private int videoWidth, videoHeight, codedWidth, codedHeight, sarNum=1, sarDen=1;
 
     public PlayerView(Context c) { this(c,null); }
     public PlayerView(Context c, AttributeSet a) { this(c,a,0); }
@@ -82,6 +82,8 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
         releasePlayer();
         pending=uri; pendingHeaders=headers; prepared=false; completed=false; wantPlay=true; buffer=0;
         videoOutput=false; stalledAt=0;
+        videoWidth=videoHeight=codedWidth=codedHeight=0; sarNum=sarDen=1;
+        surface.setLayoutParams(new LayoutParams(-1,-1,Gravity.CENTER));
         state=STATE_PREPARING; openedAt=SystemClock.elapsedRealtime();
         cache.onSelection();
         PlaybackCoordinator.loading(getContext());
@@ -105,12 +107,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             // unbounded worker pool reading abandoned responses for another 60 seconds.
             Uri source=cached==null ? Uri.parse(original) : Uri.fromFile(cached);
             player=new org.videolan.libvlc.MediaPlayer(engine());
-            IVLCVout vout=player.getVLCVout();
-            vout.setVideoView(surface);
-            vout.attachViews((v,w,h,vw,vh,sn,sd) -> {
-                if(token==generation && player!=null) onNewVideoLayout(v,w,h,vw,vh,sn,sd);
-            });
-            if(getWidth()>0 && getHeight()>0) vout.setWindowSize(getWidth(),getHeight());
+            attachVideo();
             player.setEventListener(event -> { if(token==generation) handleEvent(event); });
             Media media=new Media(engine(),source);
             media.setHWDecoderEnabled(false,false);
@@ -187,7 +184,27 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             return;
         }
         if(state==STATE_COMPLETED) { setVideoURI(pending); return; }
+        attachVideo();
         if(state==STATE_PAUSED || state==STATE_PREPARED) { player.play(); state=STATE_PLAYING; setKeepScreenOn(true); }
+    }
+    /** AWindow detaches itself when an Activity's SurfaceView is destroyed.
+     * Rebind on return, including when Android has not created the new surface yet. */
+    private void attachVideo() {
+        if(player==null || detached) return;
+        IVLCVout vout=player.getVLCVout();
+        if(!vout.areViewsAttached()) {
+            final int token=generation;
+            videoOutput=false; stalledAt=0; openedAt=SystemClock.elapsedRealtime();
+            player.setAspectRatio(null); player.setScale(0);
+            vout.setVideoView(surface);
+            vout.attachViews((v,w,h,vw,vh,sn,sd) -> {
+                if(token==generation && player!=null) onNewVideoLayout(v,w,h,vw,vh,sn,sd);
+            });
+            main.removeCallbacks(watchdog); main.postDelayed(watchdog,500);
+            Log.i("Android5Player","SURFACE_ATTACHED");
+        }
+        if(getWidth()>0 && getHeight()>0) vout.setWindowSize(getWidth(),getHeight());
+        fitVideo();
     }
     public void pause() { wantPlay=false; if(player!=null && prepared) { player.pause(); state=STATE_PAUSED; } setKeepScreenOn(false); cache.suspend(); }
     public void stopPlayback() {
@@ -231,6 +248,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
         setKeepScreenOn(false);
     }
     public void onNewVideoLayout(IVLCVout v,int w,int h,int visibleW,int visibleH,int sn,int sd) {
+        codedWidth=w; codedHeight=h;
         videoWidth=visibleW>0 ? visibleW : w; videoHeight=visibleH>0 ? visibleH : h;
         sarNum=sn>0 ? sn : 1; sarDen=sd>0 ? sd : 1;
         fitVideo();
@@ -239,9 +257,14 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     private void fitVideo() {
         int w=getWidth(), h=getHeight();
         if(w<=0 || h<=0 || videoWidth<=0 || videoHeight<=0) return;
-        if(player!=null) player.getVLCVout().setWindowSize(w,h);
-        float ratio=(float)videoWidth*sarNum/(videoHeight*sarDen);
+        if(player!=null) {
+            player.getVLCVout().setWindowSize(w,h);
+        }
+        float ratio=(float)videoWidth*sarNum/((float)videoHeight*sarDen);
         if((float)w/h>ratio) w=Math.round(h*ratio); else h=Math.round(w/ratio);
+        // Account for codec padding just as LibVLC's VideoHelper does.
+        w=(int)Math.ceil((double)w*Math.max(codedWidth,videoWidth)/videoWidth);
+        h=(int)Math.ceil((double)h*Math.max(codedHeight,videoHeight)/videoHeight);
         surface.setLayoutParams(new LayoutParams(w,h,Gravity.CENTER));
     }
     protected void onDetachedFromWindow() {

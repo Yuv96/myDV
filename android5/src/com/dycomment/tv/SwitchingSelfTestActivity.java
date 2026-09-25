@@ -26,7 +26,7 @@ public final class SwitchingSelfTestActivity extends Activity implements Applica
     private Activity feed;
     private PlayerView player;
     private String root;
-    private int stage, cycles, outputs, target, staleToken;
+    private int stage, cycles, outputs, target, staleToken, returns, nativeGeneration, beforeReturn;
     private long started, stageAt, heartbeatAt, worstGap, heapBefore;
     private boolean done;
     private Object staleAvatar;
@@ -132,8 +132,25 @@ public final class SwitchingSelfTestActivity extends Activity implements Applica
                     File[] files=new File(getCacheDir(),"next-video-v1").listFiles(); long total=0;
                     if(files!=null) for(File f:files) { total+=f.length(); if(f.length()>32L*1024*1024) throw new Exception("oversized cache entry"); }
                     if(total>64L*1024*1024) throw new Exception("cache budget exceeded");
-                    Log.i("Android5SwitchTest","PASS API21_REAL_FEED_OVERSIZE_STALL_RAPID_RETURN_TIMEOUT_STALE_CALLBACKS heartbeat_ms="+worstGap+" heap_growth="+growth+" large_requests="+largeRequests.get()+" slow_requests="+slowRequests.get());
-                    done=true; cleanup(); return;
+                    Log.i("Android5SwitchTest","SWITCHING_OK heartbeat_ms="+worstGap+" heap_growth="+growth);
+                    View author=(View)field("tvAuthor"), stats=(View)field("tvStats");
+                    if(author.getParent()!=stats.getParent() || stats.getBackground()!=null) throw new Exception("metadata card hierarchy");
+                    if(((View)field("infoOverlay")).getBackground()==null) throw new Exception("missing single material card");
+                    stage=6; stageAt=now; outputs=0; beforeReturn=player.getCurrentPosition();
+                    nativeGeneration=(Integer)InteractionController.field(player,"generation");
+                    feed.startActivity(new Intent(feed,SurfaceCoverTestActivity.class));
+                } else if(stage==6 && now-stageAt>3000 && outputs>0) {
+                    int position=player.getCurrentPosition();
+                    if(position<beforeReturn || position>beforeReturn+6000) throw new Exception("return lost playback position");
+                    if((Integer)InteractionController.field(player,"generation")!=nativeGeneration) throw new Exception("return reloaded instead of reattaching surface");
+                    if((Integer)field("currentIndex")!=0 || !player.isPlaying()) throw new Exception("return did not resume selected video");
+                    if(++returns<3) {
+                        stageAt=now; outputs=0; beforeReturn=position;
+                        feed.startActivity(new Intent(feed,SurfaceCoverTestActivity.class));
+                    } else {
+                        Log.i("Android5SwitchTest","PASS API21_REAL_FEED_OVERSIZE_STALL_RAPID_RETURN_TIMEOUT_STALE_CALLBACKS_SURFACE_RETURN_CARD returns="+returns+" heartbeat_ms="+worstGap);
+                        done=true; cleanup(); return;
+                    }
                 }
             } catch(Exception e) { fail(e.getMessage()); return; }
             handler.postDelayed(this,100);

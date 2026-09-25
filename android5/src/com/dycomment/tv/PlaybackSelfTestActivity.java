@@ -70,8 +70,22 @@ public final class PlaybackSelfTestActivity extends Activity {
                 // A seek is asynchronous. Observe the new position before checking progress again.
                 stage=4;
             } else if(stage==4 && position>2200 && view.isPlaying()) {
-                Log.i("Android5SelfTest","PASS API21_H264_HIGH_BASELINE_VIDEO_OUTPUT_CACHE_PAUSE_SEEK_RATE");
-                stage=5; return;
+                try {
+                    File portrait=new File(getCacheDir(),"test-portrait.mp4");
+                    try(InputStream in=getAssets().open("selftest-portrait.mp4"); OutputStream out=new FileOutputStream(portrait)) {
+                        byte[] b=new byte[8192]; int n; while((n=in.read(b))!=-1) out.write(b,0,n);
+                    }
+                    outputs=0; stage=5; view.setVideoURI(Uri.fromFile(portrait));
+                } catch(Exception e) { fail("portrait fixture"); return; }
+            } else if(stage==5 && outputs>0 && position>1200) {
+                android.view.View surface=view.getChildAt(0);
+                if(Math.abs(surface.getLeft()+surface.getRight()-view.getWidth())>2 || Math.abs(surface.getTop()+surface.getBottom()-view.getHeight())>2) {
+                    fail("portrait not centered"); return;
+                }
+                float aspect=(float)surface.getWidth()/surface.getHeight();
+                if(Math.abs(aspect-360f/640f)>0.025f) { fail("portrait aspect "+aspect); return; }
+                Log.i("Android5SelfTest","PASS API21_H264_HIGH_BASELINE_VIDEO_OUTPUT_CACHE_PAUSE_SEEK_RATE_PORTRAIT_CENTER");
+                stage=6; return;
             }
             handler.postDelayed(this,500);
         }

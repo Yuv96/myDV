@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
@@ -13,7 +12,10 @@ import java.util.List;
 
 /** Followed accounts only; errors and a genuinely empty list are separate states. */
 public final class FollowedLiveActivity extends Activity {
-    LinearLayout list;
+    android.widget.ListView list;
+    final List<SocialApi.Live> entries = new ArrayList<>();
+    android.widget.BaseAdapter adapter;
+    final PreviewImages images = new PreviewImages();
     TextView status, refresh;
     boolean loading;
     int generation;
@@ -28,8 +30,33 @@ public final class FollowedLiveActivity extends Activity {
         refresh = button("刷新"); refresh.setOnClickListener(v -> load()); bar.addView(refresh); root.addView(bar);
         status = new TextView(this); status.setTextSize(18); status.setTextColor(0xffbbbbbb);
         status.setPadding(dp(8), dp(14), dp(8), dp(14)); root.addView(status);
-        ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        list = new android.widget.ListView(this); list.setDividerHeight(dp(6));
+        adapter = new android.widget.BaseAdapter() {
+            public int getCount() { return entries.size(); }
+            public Object getItem(int p) { return entries.get(p); }
+            public long getItemId(int p) { return p; }
+            public android.view.View getView(int p, android.view.View old, android.view.ViewGroup parent) {
+                LinearLayout row;
+                if(old instanceof LinearLayout) row=(LinearLayout)old;
+                else {
+                    row=new LinearLayout(FollowedLiveActivity.this); row.setGravity(Gravity.CENTER_VERTICAL);
+                    row.setPadding(dp(10),dp(8),dp(14),dp(8));
+                    row.setBackground(ModernMenuHelper.background(false));
+                    android.widget.ImageView preview=new android.widget.ImageView(FollowedLiveActivity.this);
+                    preview.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+                    row.addView(preview,new LinearLayout.LayoutParams(dp(144),dp(81)));
+                    TextView label=new TextView(FollowedLiveActivity.this); label.setTextSize(22); label.setTextColor(-1); label.setMaxLines(2);
+                    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.leftMargin=dp(16); row.addView(label,lp);
+                }
+                SocialApi.Live live=entries.get(p);
+                ((TextView)row.getChildAt(1)).setText(live.author+"\n"+live.title);
+                images.bind((android.widget.ImageView)row.getChildAt(0),live.preview);
+                return row;
+            }
+        };
+        list.setAdapter(adapter); list.setSelector(ModernMenuHelper.background(true));
+        list.setOnItemClickListener((parent,view,position,id) -> open(entries.get(position)));
+        root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root); refresh.requestFocus(); load();
     }
     int dp(int n) { return ModernMenuHelper.dp(this, n); }
@@ -44,7 +71,7 @@ public final class FollowedLiveActivity extends Activity {
         if (loading) return;
         if (!SocialApi.personalCookie()) { status.setText("请先在返回菜单中设置自己的 Cookie，再查看关注的直播。"); return; }
         final String cookie = SocialApi.cookie(); final int token = ++generation;
-        loading = true; refresh.setText("加载中"); status.setText("正在读取关注的直播..."); list.removeAllViews();
+        loading = true; refresh.setText("加载中"); status.setText("正在读取关注的直播..."); entries.clear(); adapter.notifyDataSetChanged(); images.clear();
         SocialApi.WORK.execute(() -> {
             try {
                 List<SocialApi.Live> lives = SocialApi.followedLive(cookie);
@@ -52,14 +79,8 @@ public final class FollowedLiveActivity extends Activity {
                     if (!valid(token, cookie)) return;
                     loading = false; refresh.setText("刷新");
                     status.setText(lives.isEmpty() ? "你关注的人暂时没有开播。" : "当前有 " + lives.size() + " 个关注的直播");
-                    for (SocialApi.Live live : lives) {
-                        TextView row = button(live.author + "  ·  " + live.title);
-                        row.setTextSize(24); row.setMaxLines(2); row.setMinHeight(dp(76));
-                        row.setOnClickListener(v -> open(live));
-                        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.bottomMargin = dp(6);
-                        list.addView(row, rp);
-                    }
-                    if (list.getChildCount() > 0) list.getChildAt(0).requestFocus();
+                    entries.addAll(lives); adapter.notifyDataSetChanged();
+                    if(!entries.isEmpty()) { list.requestFocus(); list.setSelection(0); }
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -88,5 +109,5 @@ public final class FollowedLiveActivity extends Activity {
             Intent intent = new Intent(this, main); intent.putExtra("from_profile", true); startActivity(intent);
         } catch (Exception e) { Toast.makeText(this, "直播暂时无法打开", Toast.LENGTH_LONG).show(); }
     }
-    @Override protected void onDestroy() { generation++; super.onDestroy(); }
+    @Override protected void onDestroy() { generation++; images.close(); super.onDestroy(); }
 }

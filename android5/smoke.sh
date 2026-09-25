@@ -4,7 +4,7 @@ mkdir -p evidence
 test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 21
 adb shell wm size 1280x720
 adb shell wm density 160
-adb install -r dist/myDV-Android5-1.1.9-a5.3.apk
+adb install -r dist/myDV-Android5-1.1.9-a5.4.apk
 adb logcat -c
 adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.InteractionSelfTestActivity
 sleep 3

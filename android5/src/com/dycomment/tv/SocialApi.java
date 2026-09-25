@@ -45,13 +45,16 @@ public final class SocialApi {
         return b.toString();
     }
     static JSONObject request(String path, Map<String,String> values, boolean post, String session) throws Exception {
+        return requestAt("https://www.douyin.com",path,values,post,session);
+    }
+    static JSONObject requestAt(String origin,String path,Map<String,String> values,boolean post,String session) throws Exception {
         if (session.isEmpty()) throw new Exception("请在返回菜单中设置自己的 Cookie");
         Map<String,String> common = params("device_platform", "webapp", "aid", "6383", "channel", "channel_pc_web",
             "version_code", "170400", "version_name", "17.4.0", "cookie_enabled", "true");
         if (!post) common.putAll(values);
-        HttpURLConnection c = (HttpURLConnection) new URL("https://www.douyin.com" + path + "?" + encode(common)).openConnection();
+        HttpURLConnection c = (HttpURLConnection) new URL(origin + path + "?" + encode(common)).openConnection();
         c.setInstanceFollowRedirects(false); c.setConnectTimeout(12000); c.setReadTimeout(18000);
-        c.setRequestProperty("User-Agent", UA); c.setRequestProperty("Referer", "https://www.douyin.com/");
+        c.setRequestProperty("User-Agent", UA); c.setRequestProperty("Referer", origin+"/");
         c.setRequestProperty("Cookie", session); c.setRequestProperty("Accept", "application/json");
         try {
             if (post) {
@@ -105,7 +108,7 @@ public final class SocialApi {
     }
     static final Set<String> LIVE_FIELDS = new HashSet<>(java.util.Arrays.asList("data", "room", "is_recommend", "id_str", "title",
         "owner", "nickname", "sec_uid", "follow_info", "follow_status", "stream_url", "hls_pull_url_map", "flv_pull_url", "hls_pull_url",
-        "SD1", "HD1", "SD2", "FULL_HD1", "status_code"));
+        "SD1", "HD1", "SD2", "FULL_HD1", "status_code", "cover", "avatar_thumb", "url_list"));
     static Object compactLive(JsonReader r, int depth) throws Exception {
         if (depth > 12) throw new Exception("直播数据层级异常");
         JsonToken token = r.peek();
@@ -169,7 +172,7 @@ public final class SocialApi {
         return (int) Math.min(Integer.MAX_VALUE, total);
     }
     static final class Live {
-        String id, title, author, secUid, stream;
+        String id, title, author, secUid, stream, preview;
     }
     static List<Live> followedLive(String session) throws Exception {
         JSONObject self = request("/aweme/v1/web/user/profile/self/", params(), false, session).optJSONObject("user");
@@ -195,9 +198,19 @@ public final class SocialApi {
             if (live.id.isEmpty() || !seen.add(live.id)) continue;
             live.title = room.optString("title", "直播中"); live.author = owner.optString("nickname", "主播");
             live.secUid = owner.optString("sec_uid", ""); live.stream = stream(room.optJSONObject("stream_url"));
+            live.preview = imageUrl(room.optJSONObject("cover"));
+            if (live.preview.isEmpty()) live.preview = imageUrl(owner.optJSONObject("avatar_thumb"));
             result.add(live);
         }
         return result;
+    }
+    static String imageUrl(JSONObject image) {
+        JSONArray urls = image == null ? null : image.optJSONArray("url_list");
+        if (urls != null) for (int i=0;i<urls.length();i++) {
+            String url=urls.optString(i, "");
+            if(url.startsWith("https://")) return url;
+        }
+        return "";
     }
     static String stream(JSONObject stream) {
         if (stream == null) return "";

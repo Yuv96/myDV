@@ -1,7 +1,6 @@
 package com.dycomment.tv;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
@@ -30,7 +29,25 @@ public final class InteractionController {
     boolean busy, stateLoading, resumePlayback;
     long lastUnread;
     int unread = -1;
-    boolean unreadLoading;
+    boolean unreadLoading, foreground;
+    final java.util.concurrent.ExecutorService unreadWork=java.util.concurrent.Executors.newSingleThreadExecutor();
+    final Runnable unreadTick=new Runnable() {
+        public void run() {
+            if(!foreground || activity.isFinishing() || activity.isDestroyed()) return;
+            updateClock(activity);
+            handler.postDelayed(this,1000);
+        }
+    };
+    public static void resumed(Activity a) {
+        InteractionController c=get(a); c.foreground=true; c.lastUnread=0;
+        c.handler.removeCallbacks(c.unreadTick); c.handler.post(c.unreadTick);
+    }
+    public static void paused(Activity a) {
+        InteractionController c=get(a); c.foreground=false; c.handler.removeCallbacks(c.unreadTick);
+    }
+    public static void destroyed(Activity a) {
+        InteractionController c=get(a); c.foreground=false; c.handler.removeCallbacksAndMessages(null); c.unreadWork.shutdownNow(); LiveChatController.destroy(a);
+    }
     String unreadSession = "";
 
     InteractionController(Activity a) { activity = a; }
@@ -158,9 +175,10 @@ public final class InteractionController {
             return;
         }
         if (action == 4) {
-            new AlertDialog.Builder(activity).setTitle("分享当前视频")
-                .setMessage("好友快速分享尚未接通，当前版本不能向抖音好友发送视频。")
-                .setPositiveButton("知道了", null).show();
+            if(!SocialApi.personalCookie()) { toast("请先设置自己的 Cookie"); return; }
+            if(!id.matches("[0-9]+") || text(item,"isLive").equals("true")) { toast("仅支持分享当前短视频"); return; }
+            close(false);
+            Intent share=new Intent(activity,QuickShareActivity.class); share.putExtra("video_id",id); activity.startActivity(share);
             return;
         }
         if (busy) return;
@@ -220,16 +238,16 @@ public final class InteractionController {
             clock.setText(new SimpleDateFormat("HH:mm", Locale.CHINA).format(new Date()) + (c.unread > 0 ? "  |  +" + c.unread : ""));
             clock.setContentDescription(c.unread > 0 ? "时间，抖音未读通知 " + c.unread : "时间");
             long now = SystemClock.elapsedRealtime();
-            if (!a.hasWindowFocus() || !SocialApi.personalCookie() || c.unreadLoading || (c.lastUnread != 0 && now - c.lastUnread < 60000)) return;
+            if (!c.foreground || !SocialApi.personalCookie() || c.unreadLoading || (c.lastUnread != 0 && now - c.lastUnread < 30000)) return;
             c.unreadLoading = true; c.lastUnread = now;
-            SocialApi.WORK.execute(() -> {
+            c.unreadWork.execute(() -> {
                 int count;
                 try { count = SocialApi.unread(cookie); } catch (Exception e) { count = -1; }
                 final int result = count;
                 c.handler.post(() -> {
                     c.unreadLoading = false;
                     if (a.isFinishing() || a.isDestroyed() || !cookie.equals(SocialApi.cookie())) return;
-                    c.unread = result; updateClock(a);
+                    if(result>=0) c.unread = result; updateClock(a);
                 });
             });
         } catch (Exception ignored) {}
