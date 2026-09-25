@@ -46,7 +46,7 @@ public final class SwitchingSelfTestActivity extends Activity implements Applica
             for(int i=0;i<20;i++) {
                 Object item=itemClass.getConstructor(String.class,String.class,String.class,String.class)
                     .newInstance("fixture-"+i,"fixture "+i,"local test","");
-                InteractionController.field(item,"videoUrl",root+(i==0 ? "/good.mp4" : i==1 ? "/large.mp4" : "/stall.mp4"));
+                InteractionController.field(item,"videoUrl",root+(i==0 ? "/good.mp4" : i==1 ? "/large.mp4" : "/stall.mp4")+"?via=douyinvod.com");
                 InteractionController.field(item,"videoWidth",1280); InteractionController.field(item,"videoHeight",720);
                 items.add(item);
             }
@@ -113,7 +113,7 @@ public final class SwitchingSelfTestActivity extends Activity implements Applica
                     Log.i("Android5SwitchTest","RAPID_ROUNDTRIP_RECOVERED cycles="+cycles);
                     // A small advertised file with a stalled body exercises in-progress cancellation.
                     List<?> items=(List<?>)field("feedList");
-                    InteractionController.field(items.get(1),"videoUrl",root+"/stall.mp4");
+                    InteractionController.field(items.get(1),"videoUrl",root+"/stall.mp4?via=douyinvod.com");
                     key(KeyEvent.KEYCODE_DPAD_DOWN); key(KeyEvent.KEYCODE_DPAD_UP);
                     stage=3; stageAt=now;
                 } else if(stage==3 && now-stageAt>4500 && slowRequests.get()>0 && player.getCurrentPosition()>1000) {
@@ -148,7 +148,7 @@ public final class SwitchingSelfTestActivity extends Activity implements Applica
             s.setSoTimeout(30000);
             BufferedReader reader=new BufferedReader(new InputStreamReader(s.getInputStream(),"UTF-8"));
             String first=reader.readLine(); if(first==null) return;
-            String path=first.split(" ")[1],line,range=null;
+            String path=new URI(first.split(" ")[1]).getPath(),line,range=null;
             while((line=reader.readLine())!=null && !line.isEmpty()) if(line.toLowerCase(Locale.US).startsWith("range:")) range=line.substring(6).trim();
             OutputStream out=s.getOutputStream();
             if(!path.equals("/good.mp4")) {

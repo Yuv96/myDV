@@ -99,8 +99,11 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
         final Map<String,String> headers=pendingHeaders;
         final int token=generation;
         try {
-            File cached=cache.lookup(NextVideoCache.originalUrl(uri.toString()));
-            Uri source=cached==null ? uri : Uri.fromFile(cached);
+            String original=NextVideoCache.originalUrl(uri.toString());
+            File cached=cache.lookup(original);
+            // LibVLC supports the CDN stream itself. Do not leave the legacy proxy's
+            // unbounded worker pool reading abandoned responses for another 60 seconds.
+            Uri source=cached==null ? Uri.parse(original) : Uri.fromFile(cached);
             player=new org.videolan.libvlc.MediaPlayer(engine());
             IVLCVout vout=player.getVLCVout();
             vout.setVideoView(surface);
@@ -215,6 +218,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             old.getVLCVout().detachViews();
             new Thread(() -> {
                 try { old.stop(); }
+                catch(RuntimeException e) { Log.w("Android5Player","STOP_FAILED "+e.getClass().getSimpleName()); }
                 finally {
                     main.post(() -> {
                         old.release(); // stopped already; also unregisters Android UI/audio callbacks
