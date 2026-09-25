@@ -18,15 +18,32 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Account operations use the Cookie imported on the television, never build-time credentials. */
 public final class SocialApi {
-    static final ExecutorService WORK = Executors.newFixedThreadPool(2);
+    private static final ThreadPoolExecutor WORK =
+            new ThreadPoolExecutor(2, 2, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(8));
+
+    static {
+        WORK.allowCoreThreadTimeOut(true);
+    }
+
+    static boolean submit(Runnable operation) {
+        try {
+            WORK.execute(operation);
+            return true;
+        } catch (RejectedExecutionException full) {
+            return false;
+        }
+    }
+
     static final String UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
-                + " Chrome/120.0.0.0 Safari/537.36";
+                    + " Chrome/120.0.0.0 Safari/537.36";
 
     static String cookie() {
         try {
@@ -128,7 +145,11 @@ public final class SocialApi {
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     byte[] buffer = new byte[16384];
                     int n;
+                    long deadline = android.os.SystemClock.elapsedRealtime() + 20000;
                     while ((n = in.read(buffer)) != -1) {
+                        if (Thread.currentThread().isInterrupted()
+                                || android.os.SystemClock.elapsedRealtime() > deadline)
+                            throw new java.io.IOException("读取超时");
                         if (out.size() + n > 4 * 1024 * 1024) throw new Exception("响应过大，请稍后重试");
                         out.write(buffer, 0, n);
                     }
@@ -167,8 +188,12 @@ public final class SocialApi {
         InputStream bounded =
                 new java.io.FilterInputStream(in) {
                     int count;
+                    final long deadline = android.os.SystemClock.elapsedRealtime() + 20000;
 
                     void add(int n) throws java.io.IOException {
+                        if (Thread.currentThread().isInterrupted()
+                                || android.os.SystemClock.elapsedRealtime() > deadline)
+                            throw new java.io.IOException("读取超时");
                         if (n > 0 && (count += n) > 16 * 1024 * 1024)
                             throw new java.io.IOException("直播响应过大");
                     }

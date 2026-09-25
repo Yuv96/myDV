@@ -113,7 +113,7 @@ public final class QuickShareActivity extends Activity {
         busy = true;
         final int token = generation;
         more.setText("正在读取好友...");
-        SocialApi.WORK.execute(
+        if (!SocialApi.submit(
                 () -> {
                     try {
                         QuickShareApi.Page page = QuickShareApi.friends(session, cursor);
@@ -145,7 +145,10 @@ public final class QuickShareActivity extends Activity {
                                     }
                                 });
                     }
-                });
+                })) {
+            busy = false;
+            more.setText("请求较多，请稍后重试");
+        }
     }
 
     void share(QuickShareApi.Friend friend) {
@@ -157,7 +160,7 @@ public final class QuickShareActivity extends Activity {
         busy = true;
         final int token = generation;
         status.setText("正在分享给 " + friend.name + "...");
-        SocialApi.WORK.execute(
+        if (!SocialApi.submit(
                 () -> {
                     String message;
                     boolean ok = false;
@@ -177,7 +180,10 @@ public final class QuickShareActivity extends Activity {
                                 adapter.notifyDataSetChanged();
                                 status.setText(result);
                             });
-                });
+                })) {
+            busy = false;
+            status.setText("请求较多，视频尚未发送，请稍后重试");
+        }
     }
 
     @Override

@@ -131,7 +131,7 @@ public final class FollowedLiveActivity extends Activity {
         entries.clear();
         adapter.notifyDataSetChanged();
         images.clear();
-        SocialApi.WORK.execute(
+        if (!SocialApi.submit(
                 () -> {
                     try {
                         List<SocialApi.Live> lives = SocialApi.followedLive(cookie);
@@ -160,7 +160,11 @@ public final class FollowedLiveActivity extends Activity {
                                     status.setText("读取失败：" + e.getMessage());
                                 });
                     }
-                });
+                })) {
+            loading = false;
+            refresh.setText("重试");
+            status.setText("请求较多，请稍后重试");
+        }
     }
 
     boolean valid(int token, String cookie) {

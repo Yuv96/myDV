@@ -261,7 +261,7 @@ public final class InteractionController {
         stateLoading = true;
         final int token = generation;
         final String video = id, author = secUid, cookie = session;
-        SocialApi.WORK.execute(
+        if (!SocialApi.submit(
                 () -> {
                     try {
                         final SocialApi.State result = SocialApi.state(video, author, cookie);
@@ -282,7 +282,10 @@ public final class InteractionController {
                                     }
                                 });
                     }
-                });
+                })) {
+            stateLoading = false;
+            toast("请求较多，请稍后重试");
+        }
     }
 
     void labels() {
@@ -372,7 +375,7 @@ public final class InteractionController {
         final int token = generation;
         busy = true;
         panel.rows[action].setText("处理中...");
-        SocialApi.WORK.execute(
+        if (!SocialApi.submit(
                 () -> {
                     SocialApi.State result = null;
                     String message;
@@ -404,7 +407,11 @@ public final class InteractionController {
                                 labels();
                                 toast(notice);
                             });
-                });
+                })) {
+            busy = false;
+            labels();
+            toast("请求较多，操作尚未提交，请稍后重试");
+        }
     }
 
     void settings() {

@@ -49,6 +49,32 @@ public final class InteractionSelfTestActivity extends Activity {
                     "repeated spaced failures prompt refresh");
             require(!failures.record(400000) && failures.count == 1, "failure window resets");
             require(!new VideoProxyServer().isReady(), "no obsolete local playback proxy");
+            java.util.concurrent.CountDownLatch started =
+                    new java.util.concurrent.CountDownLatch(2);
+            java.util.concurrent.CountDownLatch release =
+                    new java.util.concurrent.CountDownLatch(1);
+            Runnable blocked =
+                    () -> {
+                        started.countDown();
+                        try {
+                            release.await(3, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    };
+            try {
+                require(
+                        SocialApi.submit(blocked) && SocialApi.submit(blocked),
+                        "two social workers accepted");
+                require(started.await(2, java.util.concurrent.TimeUnit.SECONDS), "workers started");
+                for (int i = 0; i < 8; i++)
+                    require(SocialApi.submit(() -> {}), "bounded queue slot " + i);
+                require(
+                        !SocialApi.submit(() -> {}),
+                        "overload is reported instead of blocking UI or dropping a send silently");
+            } finally {
+                release.countDown();
+            }
             int unread =
                     SocialApi.parseUnread(
                             new JSONObject(
