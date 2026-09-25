@@ -56,6 +56,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     private OnInfoListener onInfo;
     private OnBufferingListener onBuffering;
     private long openedAt;
+    private long surfaceResumePosition=-1;
     private int videoWidth, videoHeight, codedWidth, codedHeight, sarNum=1, sarDen=1;
 
     public PlayerView(Context c) { this(c,null); }
@@ -82,6 +83,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
         releasePlayer();
         pending=uri; pendingHeaders=headers; prepared=false; completed=false; wantPlay=true; buffer=0;
         videoOutput=false; stalledAt=0;
+        surfaceResumePosition=-1;
         videoWidth=videoHeight=codedWidth=codedHeight=0; sarNum=sarDen=1;
         surface.setLayoutParams(new LayoutParams(-1,-1,Gravity.CENTER));
         state=STATE_PREPARING; openedAt=SystemClock.elapsedRealtime();
@@ -138,6 +140,13 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             break;
         case org.videolan.libvlc.MediaPlayer.Event.Vout:
             if(e.getVoutCount()>0) {
+                if(surfaceResumePosition>=0 && player!=null) {
+                    long position=surfaceResumePosition; surfaceResumePosition=-1;
+                    // Surface destruction disables the video track. On re-enable,
+                    // flush orphaned P frames by decoding from a keyframe to this time.
+                    player.setTime(position,false);
+                    Log.i("Android5Player","RESTORE_POSITION ms="+position);
+                }
                 fitVideo();
                 videoOutput=true; stalledAt=0;
                 PlaybackCoordinator.ready(getContext());
@@ -195,6 +204,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
         IVLCVout vout=player.getVLCVout();
         if(!vout.areViewsAttached()) {
             final int token=generation;
+            if(prepared && player.isSeekable()) surfaceResumePosition=Math.max(0,player.getTime());
             videoOutput=false; stalledAt=0; openedAt=SystemClock.elapsedRealtime();
             player.setAspectRatio(null); player.setScale(0);
             vout.setVideoView(surface);

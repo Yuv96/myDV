@@ -35,7 +35,7 @@ public final class InteractionController {
         public void run() {
             if(!foreground || activity.isFinishing() || activity.isDestroyed()) return;
             updateClock(activity);
-            handler.postDelayed(this,1000);
+            handler.postDelayed(this,30000);
         }
     };
     public static void resumed(Activity a) {
@@ -235,8 +235,10 @@ public final class InteractionController {
             clock.setVisibility(View.VISIBLE);
             String cookie = SocialApi.cookie();
             if (!cookie.equals(c.unreadSession)) { c.unreadSession = cookie; c.unread = -1; c.lastUnread = 0; }
-            clock.setText(new SimpleDateFormat("HH:mm", Locale.CHINA).format(new Date()) + (c.unread > 0 ? "  |  +" + c.unread : ""));
-            clock.setContentDescription(c.unread > 0 ? "时间，抖音未读通知 " + c.unread : "时间");
+            String label=new SimpleDateFormat("HH:mm", Locale.CHINA).format(new Date()) + (c.unread > 0 ? "  |  +" + c.unread : "");
+            if(!label.contentEquals(clock.getText())) clock.setText(label);
+            String description=c.unread > 0 ? "时间，抖音未读通知 " + c.unread : "时间";
+            if(!description.equals(clock.getContentDescription())) clock.setContentDescription(description);
             long now = SystemClock.elapsedRealtime();
             if (!c.foreground || !SocialApi.personalCookie() || c.unreadLoading || (c.lastUnread != 0 && now - c.lastUnread < 30000)) return;
             c.unreadLoading = true; c.lastUnread = now;
