@@ -4,7 +4,7 @@ mkdir -p evidence
 test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 21
 adb shell wm size 1280x720
 adb shell wm density 160
-adb install -r dist/myDV-Android5-1.1.9-a5.2.apk
+adb install -r dist/myDV-Android5-1.1.9-a5.3.apk
 adb logcat -c
 adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.InteractionSelfTestActivity
 sleep 3
@@ -24,6 +24,19 @@ done
 cat evidence/selftest.txt
 $passed
 adb exec-out screencap -p > evidence/android5-decoded.png
+adb shell am force-stop com.dycomment.tv.android5
+adb logcat -c
+adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.SwitchingSelfTestActivity
+passed=false
+for attempt in $(seq 1 65); do
+  sleep 2
+  adb logcat -d -s Android5SwitchTest:I Android5Player:I NextVideoCache:I AndroidRuntime:E > evidence/switching-test.txt
+  if grep -q 'FAIL\|FATAL EXCEPTION' evidence/switching-test.txt; then cat evidence/switching-test.txt; exit 1; fi
+  if grep -q 'PASS API21_REAL_FEED' evidence/switching-test.txt; then passed=true; break; fi
+done
+cat evidence/switching-test.txt
+$passed
+adb exec-out screencap -p > evidence/switching-recovered.png
 adb shell am force-stop com.dycomment.tv.android5
 adb logcat -c
 adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.MainActivity

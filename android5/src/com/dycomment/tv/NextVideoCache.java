@@ -21,7 +21,12 @@ public final class NextVideoCache {
     private static final long MAX_FILE=32L*1024*1024, TTL=30L*60*1000;
     private final File directory;
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker=new ThreadPoolExecutor(1,1,0,TimeUnit.MILLISECONDS,
+        new ArrayBlockingQueue<Runnable>(1), new ThreadPoolExecutor.DiscardOldestPolicy());
+    private final ExecutorService canceller=Executors.newSingleThreadExecutor();
+    private volatile HttpURLConnection cancelling;
+    private long nextAllowed;
+    private boolean resolving;
     private volatile int generation;
     private volatile HttpURLConnection connection;
     private volatile boolean closed;
@@ -61,19 +66,24 @@ public final class NextVideoCache {
         }
         activeFile=null; return null;
     }
-    public void onSelection() { suspend(); activeFile=null; }
+    public void onSelection() { suspend(); activeFile=null; nextAllowed=0; }
     public void suspend() {
-        generation++; scheduledUrl=null;
+        generation++; scheduledUrl=null; resolving=false;
+        worker.getQueue().clear();
+        nextAllowed=android.os.SystemClock.elapsedRealtime()+5000;
         if(delayed!=null) { main.removeCallbacks(delayed); delayed=null; }
         final HttpURLConnection c=connection;
-        // Disconnect on a background thread: a CDN read must not block the remote control.
-        if(c!=null) new Thread(() -> c.disconnect(),"prefetch-cancel").start();
+        // One cancellation per connection, never one new thread per buffering callback.
+        if(c!=null && c!=cancelling && !canceller.isShutdown()) {
+            cancelling=c;
+            canceller.execute(() -> { try { c.disconnect(); } catch(Exception ignored) {} });
+        }
     }
     private static Object field(Object object,String name) throws Exception {
         Field f=object.getClass().getDeclaredField(name); f.setAccessible(true); return f.get(object);
     }
     public void scheduleNext(Context context) {
-        if(closed || delayed!=null || scheduledUrl!=null) return;
+        if(closed || delayed!=null || scheduledUrl!=null || resolving) return;
         final WeakReference<Context> ref=new WeakReference<Context>(context);
         final int token=generation;
         delayed=() -> {
@@ -94,11 +104,14 @@ public final class NextVideoCache {
                 String url=(String)field(item,"videoUrl");
                 if(url!=null && !url.isEmpty()) { prefetch(url); return; }
                 // Resolve a missing next-item URL before it is selected, using the app's existing API.
+                resolving=true;
                 final Object next=item;
                 Class<?> callback=Class.forName("com.dycomment.tv.DouyinApi$DetailCallback");
                 Object listener=Proxy.newProxyInstance(callback.getClassLoader(),new Class<?>[]{callback},(proxy,method,args) -> {
-                    if(method.getName().equals("onResult") && args!=null) main.post(() -> {
+                    if((method.getName().equals("onResult") || method.getName().equals("onError")) && args!=null) main.post(() -> {
                         if(token!=generation || closed) return;
+                        resolving=false;
+                        if(!method.getName().equals("onResult")) return;
                         try {
                             String resolved=(String)field(args[0],"videoUrl");
                             if(resolved!=null && !resolved.isEmpty()) {
@@ -111,9 +124,9 @@ public final class NextVideoCache {
                 });
                 Class.forName("com.dycomment.tv.DouyinApi").getMethod("getVideoDetail",String.class,callback)
                     .invoke(null,(String)field(item,"awemeId"),listener);
-            } catch(Exception ignored) { /* Non-feed contexts, such as the offline self-test. */ }
+            } catch(Exception ignored) { resolving=false; /* Non-feed contexts, such as the offline self-test. */ }
         };
-        main.postDelayed(delayed,1200);
+        main.postDelayed(delayed,Math.max(1500,nextAllowed-android.os.SystemClock.elapsedRealtime()));
     }
     public void prefetch(String url) {
         if(closed || url==null || (!url.startsWith("http://") && !url.startsWith("https://"))) return;
@@ -122,6 +135,7 @@ public final class NextVideoCache {
         File target=fileFor(url);
         if(target.isFile() && System.currentTimeMillis()-target.lastModified()<TTL) return;
         final int token=generation;
+        worker.getQueue().clear();
         worker.execute(() -> download(url,target,token));
     }
     private void download(String url,File target,int token) {
@@ -137,23 +151,32 @@ public final class NextVideoCache {
         HttpURLConnection c=null;
         try {
             c=(HttpURLConnection)new URL(url).openConnection(); connection=c;
-            c.setConnectTimeout(8000); c.setReadTimeout(8000);
+            if(token!=generation || closed) return;
+            c.setConnectTimeout(4000); c.setReadTimeout(3000);
             c.setRequestProperty("User-Agent",USER_AGENT);
             c.setRequestProperty("Referer","https://www.douyin.com/");
             c.setRequestProperty("Accept-Encoding","identity");
             if(c.getResponseCode()!=200) return;
-            long size=c.getContentLength();
+            long size;
+            try { size=Long.parseLong(c.getHeaderField("Content-Length")); }
+            catch(Exception unknown) { return; }
+            if(token!=generation || closed) return;
             if(size<=0 || size>MAX_FILE) { Log.i("NextVideoCache","SKIP_SIZE bytes="+size); return; }
+            if(directory.getUsableSpace()<size+16L*1024*1024) return;
             long total=0, started=android.os.SystemClock.elapsedRealtime();
             try(InputStream in=c.getInputStream(); OutputStream out=new FileOutputStream(part)) {
                 byte[] bytes=new byte[32768]; int n;
                 while((n=in.read(bytes))!=-1) {
-                    if(token!=generation || closed) return;
+                    if(token!=generation || closed || android.os.SystemClock.elapsedRealtime()-started>20000) return;
                     total+=n; if(total>MAX_FILE) return;
                     out.write(bytes,0,n);
                     // Limit background traffic to 512 KiB/s, and yield whenever foreground buffers.
                     long wait=total*1000/(512*1024)-(android.os.SystemClock.elapsedRealtime()-started);
-                    if(wait>0) Thread.sleep(Math.min(wait,100));
+                    while(wait>0) {
+                        if(token!=generation || closed || android.os.SystemClock.elapsedRealtime()-started>20000) return;
+                        Thread.sleep(Math.min(wait,50));
+                        wait=total*1000/(512*1024)-(android.os.SystemClock.elapsedRealtime()-started);
+                    }
                 }
             }
             if(total!=size || token!=generation || closed) return;
@@ -180,5 +203,5 @@ public final class NextVideoCache {
             if(count>=2 || size+f.length()>MAX_FILE*2) f.delete(); else { count++; size+=f.length(); }
         }
     }
-    public void close() { closed=true; suspend(); worker.shutdownNow(); }
+    public void close() { closed=true; suspend(); worker.shutdownNow(); canceller.shutdown(); }
 }

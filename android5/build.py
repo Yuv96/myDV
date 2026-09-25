@@ -70,6 +70,67 @@ text += '''
     return v0
 .end method
 '''
+# Keep selection changes and asynchronous callbacks in the same epoch.
+marker='    iput p1, p0, Lcom/dycomment/tv/MainActivity;->currentIndex:I'
+assert text.count(marker)==1
+text=text.replace(marker,marker+'\n    invoke-static {p0}, Lcom/dycomment/tv/PlaybackCoordinator;->selected(Landroid/app/Activity;)V')
+marker='    :cond_9\n    iget-object p1, v1, Lcom/dycomment/tv/DouyinApi$FeedItem;->imageUrls:Ljava/util/List;'
+assert text.count(marker)==1
+text=text.replace(marker,'    :cond_9\n    invoke-static {p0}, Lcom/dycomment/tv/PlaybackCoordinator;->bound(Landroid/app/Activity;)V\n'+marker.split('\n',1)[1])
+for method in ['loadVideoDetail','refreshAndPlay']:
+    pattern=rf'(?ms)^\.method private {method}\(Lcom/dycomment/tv/DouyinApi\$FeedItem;\)V\n.*?^\.end method'
+    replacement=f'''.method private {method}(Lcom/dycomment/tv/DouyinApi$FeedItem;)V
+    .locals 0
+    invoke-static {{p0, p1}}, Lcom/dycomment/tv/PlaybackCoordinator;->detail(Landroid/app/Activity;Ljava/lang/Object;)V
+    return-void
+.end method'''
+    text,n=re.subn(pattern,lambda _:replacement,text); assert n==1,method
+pattern=r'(?ms)^\.method public synthetic lambda\$onCreate\$2\$com-dycomment-tv-MainActivity\(Landroid/media/MediaPlayer;II\)Z\n.*?^\.end method'
+replacement='''.method public synthetic lambda$onCreate$2$com-dycomment-tv-MainActivity(Landroid/media/MediaPlayer;II)Z
+    .locals 1
+    invoke-static {p0}, Lcom/dycomment/tv/PlaybackCoordinator;->error(Landroid/app/Activity;)Z
+    move-result v0
+    return v0
+.end method'''
+text,n=re.subn(pattern,lambda _:replacement,text); assert n==1
+marker='.method private hideLoading()V\n    .locals 2'
+assert marker in text
+text=text.replace(marker,marker+'''
+    invoke-static {p0}, Lcom/dycomment/tv/PlaybackCoordinator;->canHideLoading(Landroid/app/Activity;)Z
+    move-result v0
+    if-nez v0, :a53_hide_loading
+    return-void
+    :a53_hide_loading
+''')
+# Avatars and live metadata must not overwrite a selection made while requests were in flight.
+for number in [26,29,30]:
+    callback=package/f'MainActivity${number}.smali'
+    body=callback.read_text()
+    descriptor=f'Lcom/dycomment/tv/MainActivity${number};'
+    body=body.replace('# instance fields','# instance fields\n.field private selectionEpoch:I\n')
+    constructor=re.search(r'(?ms)^\.method constructor <init>.*?^\.end method',body).group()
+    updated=constructor.replace('    .locals 0','    .locals 1')
+    updated=updated.replace('    return-void',f'''    invoke-static {{p1}}, Lcom/dycomment/tv/PlaybackCoordinator;->token(Landroid/app/Activity;)I
+    move-result v0
+    iput v0, p0, {descriptor}->selectionEpoch:I
+    return-void''')
+    body=body.replace(constructor,updated)
+    def guard(match):
+        method=match.group()
+        # New locals use fresh registers; original methods address arguments as pN.
+        count=int(re.search(r'\.locals (\d+)',method).group(1)); a=f'v{count}'; b=f'v{count+1}'
+        injection=f'''    .locals {count+2}
+    iget-object {a}, p0, {descriptor}->this$0:Lcom/dycomment/tv/MainActivity;
+    iget {b}, p0, {descriptor}->selectionEpoch:I
+    invoke-static {{{a}, {b}}}, Lcom/dycomment/tv/PlaybackCoordinator;->valid(Landroid/app/Activity;I)Z
+    move-result {a}
+    if-nez {a}, :a53_current
+    return-void
+    :a53_current'''
+        return re.sub(r'    \.locals \d+',lambda _:injection,method,count=1)
+    body=re.sub(r'(?ms)^\.method public (?:onLoaded|onResult|onError|synthetic lambda\$onResult)[^\n]*\n.*?^\.end method',guard,body)
+    callback.write_text(body)
+
 main.write_text(text)
 # Avoid offering upstream APKs with a different package/signature as updates.
 updater=package/'UpdateHelper.smali'
@@ -85,11 +146,12 @@ manifest=decoded/'AndroidManifest.xml'; text=manifest.read_text()
 text=text.replace('package="com.dycomment.tv"','package="com.dycomment.tv.android5"').replace('android:label="myDV Lite"','android:label="myDV Android5"')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.PlaybackSelfTestActivity" android:exported="true" />\n    </application>')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.FollowedLiveActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.InteractionSelfTestActivity" android:exported="true" />\n</application>')
+text=text.replace("</application>",'<activity android:name="com.dycomment.tv.SwitchingSelfTestActivity" android:exported="true" />\n</application>')
 manifest.write_text(text)
 ids=decoded/'res/values/ids.xml'
 names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel'] + [f'android5_menu_row_{i}' for i in range(32)]
 ids.write_text(ids.read_text().replace('</resources>', ''.join(f'<id name="{name}" />\n' for name in names)+'</resources>'))
-config=decoded/'apktool.yml'; text=config.read_text().replace('versionCode: 9','versionCode: 1002').replace('versionName: 1.1.9','versionName: 1.1.9-a5.2')
+config=decoded/'apktool.yml'; text=config.read_text().replace('versionCode: 9','versionCode: 1003').replace('versionName: 1.1.9','versionName: 1.1.9-a5.3')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
@@ -121,7 +183,7 @@ password=os.environ.get('ANDROID5_KEYSTORE_PASSWORD','android5-build')
 if not pathlib.Path(keystore).exists():
     run('keytool','-genkeypair','-keystore',keystore,'-storetype','PKCS12','-storepass',password,'-keypass',password,
         '-alias','android5','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=myDV Android5 Community')
-apk=DIST/'myDV-Android5-1.1.9-a5.2.apk'
+apk=DIST/'myDV-Android5-1.1.9-a5.3.apk'
 os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)

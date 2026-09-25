@@ -3,6 +3,9 @@ package com.dycomment.tv;
 import android.content.Context;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;
@@ -30,6 +33,21 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     private final NextVideoCache cache;
     private org.videolan.libvlc.MediaPlayer player;
     private Uri pending;
+    private Map<String,String> pendingHeaders;
+    private final Handler main=new Handler(Looper.getMainLooper());
+    private boolean retiring, detached, videoOutput;
+    private long stalledAt;
+    private final Runnable openLatest=() -> openPending();
+    private final Runnable watchdog=new Runnable() {
+        public void run() {
+            if(detached || pending==null || state==STATE_ERROR || state==STATE_IDLE) return;
+            long now=SystemClock.elapsedRealtime();
+            if(wantPlay && ((!videoOutput && now-openedAt>20000) || (stalledAt>0 && now-stalledAt>20000))) {
+                failPlayback("LOAD_TIMEOUT"); return;
+            }
+            main.postDelayed(this,500);
+        }
+    };
     private int state, buffer, generation;
     private boolean wantPlay, prepared, completed;
     private OnPreparedListener onPrepared;
@@ -62,9 +80,23 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     public void setVideoURI(Uri uri) { setVideoURI(uri,null); }
     public void setVideoURI(Uri uri, Map<String,String> headers) {
         releasePlayer();
-        pending=uri; prepared=false; completed=false; wantPlay=true; buffer=0;
-        state=STATE_PREPARING; openedAt=android.os.SystemClock.elapsedRealtime();
+        pending=uri; pendingHeaders=headers; prepared=false; completed=false; wantPlay=true; buffer=0;
+        videoOutput=false; stalledAt=0;
+        state=STATE_PREPARING; openedAt=SystemClock.elapsedRealtime();
         cache.onSelection();
+        PlaybackCoordinator.loading(getContext());
+        main.removeCallbacks(watchdog); main.postDelayed(watchdog,500);
+        queueOpen();
+    }
+    private void queueOpen() {
+        main.removeCallbacks(openLatest);
+        if(!retiring && !detached && pending!=null && state==STATE_PREPARING)
+            main.postDelayed(openLatest,100); // Collapse rapid remote repeats to the latest selection.
+    }
+    private void openPending() {
+        if(retiring || detached || pending==null || state!=STATE_PREPARING) return;
+        final Uri uri=pending;
+        final Map<String,String> headers=pendingHeaders;
         final int token=generation;
         try {
             File cached=cache.lookup(NextVideoCache.originalUrl(uri.toString()));
@@ -72,7 +104,9 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             player=new org.videolan.libvlc.MediaPlayer(engine());
             IVLCVout vout=player.getVLCVout();
             vout.setVideoView(surface);
-            vout.attachViews(this);
+            vout.attachViews((v,w,h,vw,vh,sn,sd) -> {
+                if(token==generation && player!=null) onNewVideoLayout(v,w,h,vw,vh,sn,sd);
+            });
             if(getWidth()>0 && getHeight()>0) vout.setWindowSize(getWidth(),getHeight());
             player.setEventListener(event -> { if(token==generation) handleEvent(event); });
             Media media=new Media(engine(),source);
@@ -87,8 +121,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             Log.i("Android5Player","OPEN decoder=software cache="+(cached!=null));
         } catch(Exception | LinkageError e) {
             Log.e("Android5Player","OPEN_FAILED "+e.getClass().getSimpleName());
-            state=STATE_ERROR;
-            if(onError!=null) onError.onError(null,1,-1);
+            failPlayback("OPEN_FAILED");
         }
     }
     private void handleEvent(org.videolan.libvlc.MediaPlayer.Event e) {
@@ -101,10 +134,13 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
                 if(onPrepared!=null) onPrepared.onPrepared(null);
                 Log.i("Android5Player","PLAYING startup_ms="+(android.os.SystemClock.elapsedRealtime()-openedAt));
             }
-            if(!wantPlay) pause(); else cache.scheduleNext(getContext());
+            if(!wantPlay) pause(); else if(videoOutput && buffer>=100) cache.scheduleNext(getContext());
             break;
         case org.videolan.libvlc.MediaPlayer.Event.Vout:
             if(e.getVoutCount()>0) {
+                videoOutput=true; stalledAt=0;
+                PlaybackCoordinator.ready(getContext());
+                if(wantPlay && buffer>=100) cache.scheduleNext(getContext());
                 Log.i("Android5Player","VIDEO_OUTPUT count="+e.getVoutCount());
                 if(onInfo!=null) onInfo.onInfo(null,3,0);
             }
@@ -113,31 +149,48 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
             buffer=Math.round(e.getBuffering());
             if(onBuffering!=null) onBuffering.onBuffering(buffer);
             if(onInfo!=null) onInfo.onInfo(null,buffer<100 ? 701 : 702,0);
-            if(prepared && buffer<100) cache.suspend();
-            else if(prepared && wantPlay) cache.scheduleNext(getContext());
+            if(buffer<100) {
+                if(stalledAt==0) stalledAt=SystemClock.elapsedRealtime();
+                cache.suspend();
+            } else {
+                stalledAt=0;
+                if(videoOutput && wantPlay) cache.scheduleNext(getContext());
+            }
             break;
         case org.videolan.libvlc.MediaPlayer.Event.EndReached:
             if(!completed) {
                 completed=true; state=STATE_COMPLETED; setKeepScreenOn(false);
+                main.removeCallbacks(watchdog); cache.suspend();
                 if(onCompletion!=null) onCompletion.onCompletion(null);
             }
             break;
         case org.videolan.libvlc.MediaPlayer.Event.EncounteredError:
-            state=STATE_ERROR; setKeepScreenOn(false); cache.suspend();
-            Log.e("Android5Player","DECODE_OR_NETWORK_ERROR");
-            if(onError!=null) onError.onError(null,1,-1);
+            failPlayback("DECODE_OR_NETWORK_ERROR");
             break;
         }
+    }
+    private void failPlayback(String reason) {
+        releasePlayer(); state=STATE_ERROR; wantPlay=false; cache.suspend();
+        main.removeCallbacks(watchdog);
+        Log.e("Android5Player",reason);
+        if(onError!=null) onError.onError(null,1,-1);
     }
     public void setPlaybackSpeed(float rate) { if(player!=null) player.setRate(Math.max(0.25f,Math.min(3f,rate))); }
     public void start() {
         wantPlay=true;
-        if(player==null) { if(pending!=null) setVideoURI(pending); return; }
+        if(player==null) {
+            if(state==STATE_PREPARING) queueOpen();
+            else if(pending!=null) setVideoURI(pending,pendingHeaders);
+            return;
+        }
         if(state==STATE_COMPLETED) { setVideoURI(pending); return; }
         if(state==STATE_PAUSED || state==STATE_PREPARED) { player.play(); state=STATE_PLAYING; setKeepScreenOn(true); }
     }
     public void pause() { wantPlay=false; if(player!=null && prepared) { player.pause(); state=STATE_PAUSED; } setKeepScreenOn(false); cache.suspend(); }
-    public void stopPlayback() { pending=null; wantPlay=false; releasePlayer(); state=STATE_IDLE; cache.onSelection(); }
+    public void stopPlayback() {
+        pending=null; pendingHeaders=null; wantPlay=false;
+        main.removeCallbacks(watchdog); releasePlayer(); state=STATE_IDLE; cache.onSelection();
+    }
     public void resumeIfNeeded() { start(); }
     public void seekTo(int ms) { if(player!=null && prepared) player.setTime(Math.max(0,ms)); }
     public int getCurrentPosition() { return player==null ? 0 : (int)Math.max(0,player.getTime()); }
@@ -153,10 +206,23 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
     public void setOnBufferingListener(OnBufferingListener l) { onBuffering=l; }
     private void releasePlayer() {
         generation++;
+        main.removeCallbacks(openLatest);
         if(player!=null) {
-            player.setEventListener(null);
-            player.getVLCVout().detachViews();
-            player.release(); player=null;
+            final org.videolan.libvlc.MediaPlayer old=player;
+            player=null; retiring=true;
+            old.setEventListener(null);
+            // Surface access stays on main; blocking native stop never occupies the remote/UI thread.
+            old.getVLCVout().detachViews();
+            new Thread(() -> {
+                try { old.stop(); }
+                finally {
+                    main.post(() -> {
+                        old.release(); // stopped already; also unregisters Android UI/audio callbacks
+                        retiring=false;
+                        queueOpen();
+                    });
+                }
+            },"player-stop").start();
         }
         setKeepScreenOn(false);
     }
@@ -174,5 +240,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
         if((float)w/h>ratio) w=Math.round(h*ratio); else h=Math.round(w/ratio);
         surface.setLayoutParams(new LayoutParams(w,h,Gravity.CENTER));
     }
-    protected void onDetachedFromWindow() { releasePlayer(); cache.close(); super.onDetachedFromWindow(); }
+    protected void onDetachedFromWindow() {
+        detached=true; stopPlayback(); cache.close(); super.onDetachedFromWindow();
+    }
 }

@@ -1,12 +1,12 @@
 # Android 5.0 播放与交互兼容补丁
 
-上游公开仓库不包含 Android 工程。本目录以 SHA-256 固定的官方 Lite 1.1.9 APK 为输入，通过 Apktool + javac + D8 重建。a5.1 替换 `PlayerView` 并添加 `NextVideoCache`；a5.2 保留这两者，增加纯文字菜单、遥控器互动面板、关注直播及未读通知提示。没有降低声明版本来掩盖新 API，最低系统保持 API 21。
+上游公开仓库不包含 Android 工程。本目录以 SHA-256 固定的官方 Lite 1.1.9 APK 为输入，通过 Apktool + javac + D8 重建。a5.1 替换 `PlayerView` 并添加 `NextVideoCache`；a5.2 保留这两者，增加纯文字菜单、遥控器互动面板、关注直播及未读通知提示。a5.3 修复慢网络下的播放器释放阻塞、快速往返的旧请求覆盖及底栏提前切换，详见 [切换修复说明](SWITCHING-NOTES.md)。没有降低声明版本来掩盖新 API，最低系统保持 API 21。
 
 a5.2 的功能范围、验证方法和未完成事项见 [INTERACTION-NOTES.md](INTERACTION-NOTES.md)。好友分享暂未接通，未读数暂不包含私信。点赞、关注、收藏写操作仍需实际使用验证，开发验证没有代替用户执行这些账号操作。
 
 原 `PlayerView.openVideo()` 每次释放并创建系统 `android.media.MediaPlayer`；`MainActivity.playAt()` 在切换时调用它。原 `loadMoreFeed()` 仅预取视频列表，`VideoProxyServer` 只转发当前视频的网络字节，没有下一条内容缓存。
 
-现在 `PlayerView` 使用 LibVLC 3.7.6 自带的软件解码器，不调用旧系统 OMX H.264。新的预缓存于播放后延迟 1.2 秒启动，复用原列表中的下一条 URL；缺少 URL 时提前调用原详情接口。只缓存完整 MP4，单条最多 32 MiB、两条共 64 MiB、30 分钟有效期；后台下载上限 512 KiB/s。命中后直接传本地文件给解码器。切换或前台缓冲时取消旧预取，不同时解码两个视频。
+现在 `PlayerView` 使用 LibVLC 3.7.6 自带的软件解码器，不调用旧系统 OMX H.264。预缓存于视频输出后延迟至少 1.5 秒启动（前台缓冲后至少 5 秒），复用原列表中的下一条 URL；缺少 URL 时提前调用原详情接口。只缓存完整 MP4，单条最多 32 MiB、两条共 64 MiB、30 分钟有效期；后台下载上限 512 KiB/s，正文下载最多 20 秒。命中后直接传本地文件给解码器。切换或前台缓冲时取消旧预取，不同时解码两个视频。
 
 限制：完整下载前不复用部分缓存；直播、图集、未知长度或超过容量的视频不预缓存；快速连续跳过、网络较慢、旧 CPU 软件解码较慢时仍可能停顿。Cookie 登录方式没有改变。新包名为 `com.dycomment.tv.android5`，与原版并存，需重新填写 Cookie。
 

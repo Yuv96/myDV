@@ -72,6 +72,7 @@ public final class InteractionController {
     public static void showSettings(Activity a) { get(a).settings(); }
     /** Runs before focused views so MENU repeat never opens several overlays. */
     public static boolean handleKey(Activity a, KeyEvent e) {
+        if(PlaybackCoordinator.retryKey(a,e)) return true;
         if (e.getKeyCode() == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) {
             try {
                 if (!ModernMenuHelper.isMenuShowing() && !((Boolean) field(a, "menuShowing")) && !((Boolean) field(a, "cameFromProfile"))) {
