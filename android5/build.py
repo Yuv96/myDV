@@ -25,6 +25,7 @@ run('java','-jar',apktool,'d','-f',original,'-o',decoded)
 with zipfile.ZipFile(vlc) as z: z.extractall(WORK/'vlc')
 package=decoded/'smali/com/dycomment/tv'
 for file in package.glob('PlayerView*.smali'): file.unlink()
+for file in package.glob('ModernMenuHelper*.smali'): file.unlink()
 main=package/'MainActivity.smali'
 text=main.read_text()
 pattern=r'(?ms)^\.method public synthetic lambda\$onCreate\$0\$com-dycomment-tv-MainActivity\(Landroid/media/MediaPlayer;\)V\n.*?^\.end method'
@@ -46,6 +47,29 @@ text,n=re.subn(r'(?ms)^\.method private applySpeed\(\)V\n.*?^\.end method', '''.
     :done
     return-void
 .end method''',text); assert n==1
+for method, target in [('showDanmakuMenu','showQuick'), ('showExitMenu','showSettings'), ('updateClock','updateClock')]:
+    pattern = rf'(?ms)^\.method private {method}\(\)V\n.*?^\.end method'
+    replacement = f'''.method private {method}()V
+    .locals 0
+    invoke-static {{p0}}, Lcom/dycomment/tv/InteractionController;->{target}(Landroid/app/Activity;)V
+    return-void
+.end method'''
+    text,n = re.subn(pattern, lambda _: replacement, text); assert n == 1, method
+assert 'dispatchKeyEvent(Landroid/view/KeyEvent;)Z' not in text
+text += '''
+.method public dispatchKeyEvent(Landroid/view/KeyEvent;)Z
+    .locals 1
+    invoke-static {p0, p1}, Lcom/dycomment/tv/InteractionController;->handleKey(Landroid/app/Activity;Landroid/view/KeyEvent;)Z
+    move-result v0
+    if-eqz v0, :normal
+    const/4 v0, 0x1
+    return v0
+    :normal
+    invoke-super {p0, p1}, Landroid/app/Activity;->dispatchKeyEvent(Landroid/view/KeyEvent;)Z
+    move-result v0
+    return v0
+.end method
+'''
 main.write_text(text)
 # Avoid offering upstream APKs with a different package/signature as updates.
 updater=package/'UpdateHelper.smali'
@@ -60,8 +84,9 @@ text=text[:start]+method+text[end:]; api.write_text(text)
 manifest=decoded/'AndroidManifest.xml'; text=manifest.read_text()
 text=text.replace('package="com.dycomment.tv"','package="com.dycomment.tv.android5"').replace('android:label="myDV Lite"','android:label="myDV Android5"')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.PlaybackSelfTestActivity" android:exported="true" />\n    </application>')
+text=text.replace('</application>','<activity android:name="com.dycomment.tv.FollowedLiveActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.InteractionSelfTestActivity" android:exported="true" />\n</application>')
 manifest.write_text(text)
-config=decoded/'apktool.yml'; text=config.read_text().replace('versionCode: 9','versionCode: 1001').replace('versionName: 1.1.9','versionName: 1.1.9-a5.1')
+config=decoded/'apktool.yml'; text=config.read_text().replace('versionCode: 9','versionCode: 1002').replace('versionName: 1.1.9','versionName: 1.1.9-a5.2')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
@@ -71,7 +96,7 @@ for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'
         '-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','16','-c:v','libx264','-preset','veryfast','-crf','30',
         '-profile:v',profile,'-level:v','4.1' if profile=='high' else '3.0','-pix_fmt','yuv420p','-c:a','aac','-b:a','64k','-movflags','+faststart',assets/f'selftest-{name}.mp4')
 shutil.copytree(WORK/'vlc/jni',decoded/'lib',dirs_exist_ok=True)
-classes=WORK/'classes'; classes.mkdir(exist_ok=True)
+classes=WORK/'classes'; shutil.rmtree(classes, ignore_errors=True); classes.mkdir(exist_ok=True)
 sources=list((ROOT/'src').rglob('*.java'))
 run('javac','-source','8','-target','8','-encoding','UTF-8','-classpath',str(ANDROID)+os.pathsep+str(WORK/'vlc/classes.jar'),'-d',classes,*sources)
 compiled=WORK/'compiled.jar'
@@ -93,7 +118,7 @@ password=os.environ.get('ANDROID5_KEYSTORE_PASSWORD','android5-build')
 if not pathlib.Path(keystore).exists():
     run('keytool','-genkeypair','-keystore',keystore,'-storetype','PKCS12','-storepass',password,'-keypass',password,
         '-alias','android5','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=myDV Android5 Community')
-apk=DIST/'myDV-Android5-1.1.9-a5.1.apk'
+apk=DIST/'myDV-Android5-1.1.9-a5.2.apk'
 os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)

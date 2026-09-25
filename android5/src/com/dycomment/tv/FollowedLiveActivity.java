@@ -1,0 +1,92 @@
+package com.dycomment.tv;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.Gravity;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Followed accounts only; errors and a genuinely empty list are separate states. */
+public final class FollowedLiveActivity extends Activity {
+    LinearLayout list;
+    TextView status, refresh;
+    boolean loading;
+    int generation;
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xff101620); root.setPadding(dp(24), dp(16), dp(24), dp(16));
+        LinearLayout bar = new LinearLayout(this); bar.setGravity(Gravity.CENTER_VERTICAL);
+        TextView back = button("返回"); back.setOnClickListener(v -> finish()); bar.addView(back);
+        TextView title = new TextView(this); title.setText("  关注的直播"); title.setTextSize(26); title.setTextColor(-1);
+        bar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        refresh = button("刷新"); refresh.setOnClickListener(v -> load()); bar.addView(refresh); root.addView(bar);
+        status = new TextView(this); status.setTextSize(18); status.setTextColor(0xffbbbbbb);
+        status.setPadding(dp(8), dp(14), dp(8), dp(14)); root.addView(status);
+        ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root); refresh.requestFocus(); load();
+    }
+    int dp(int n) { return ModernMenuHelper.dp(this, n); }
+    TextView button(String text) {
+        TextView view = new TextView(this); view.setText(text); view.setTextSize(22); view.setTextColor(-1);
+        view.setPadding(dp(16), dp(12), dp(16), dp(12)); view.setFocusable(true); view.setClickable(true);
+        view.setBackground(ModernMenuHelper.background(false));
+        view.setOnFocusChangeListener((v, focus) -> v.setBackground(ModernMenuHelper.background(focus)));
+        return view;
+    }
+    void load() {
+        if (loading) return;
+        if (!SocialApi.personalCookie()) { status.setText("请先在返回菜单中设置自己的 Cookie，再查看关注的直播。"); return; }
+        final String cookie = SocialApi.cookie(); final int token = ++generation;
+        loading = true; refresh.setText("加载中"); status.setText("正在读取关注的直播..."); list.removeAllViews();
+        SocialApi.WORK.execute(() -> {
+            try {
+                List<SocialApi.Live> lives = SocialApi.followedLive(cookie);
+                runOnUiThread(() -> {
+                    if (!valid(token, cookie)) return;
+                    loading = false; refresh.setText("刷新");
+                    status.setText(lives.isEmpty() ? "你关注的人暂时没有开播。" : "当前有 " + lives.size() + " 个关注的直播");
+                    for (SocialApi.Live live : lives) {
+                        TextView row = button(live.author + "  ·  " + live.title);
+                        row.setTextSize(24); row.setMaxLines(2); row.setMinHeight(dp(76));
+                        row.setOnClickListener(v -> open(live));
+                        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.bottomMargin = dp(6);
+                        list.addView(row, rp);
+                    }
+                    if (list.getChildCount() > 0) list.getChildAt(0).requestFocus();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    if (!valid(token, cookie)) return;
+                    loading = false; refresh.setText("重试"); status.setText("读取失败：" + e.getMessage());
+                });
+            }
+        });
+    }
+    boolean valid(int token, String cookie) {
+        return !isFinishing() && !isDestroyed() && generation == token && cookie.equals(SocialApi.cookie());
+    }
+    void open(SocialApi.Live live) {
+        if (live.stream.isEmpty()) { Toast.makeText(this, "直播暂不可播放，请刷新列表", Toast.LENGTH_LONG).show(); return; }
+        try {
+            Class<?> itemClass = Class.forName("com.dycomment.tv.DouyinApi$FeedItem");
+            Object item = itemClass.getConstructor(String.class, String.class, String.class, String.class)
+                .newInstance(live.id, live.title, live.author, live.secUid);
+            InteractionController.field(item, "roomId", live.id); InteractionController.field(item, "isLive", true);
+            InteractionController.field(item, "videoUrl", live.stream); InteractionController.field(item, "liveStreamUrl", live.stream);
+            InteractionController.field(item, "awemeType", 101);
+            Class<?> main = Class.forName("com.dycomment.tv.MainActivity");
+            ArrayList<Object> feed = new ArrayList<>(); feed.add(item);
+            main.getField("profileVideoList").set(null, feed); main.getField("profilePlayIndex").setInt(null, 0);
+            main.getField("profileIsList").setBoolean(null, true);
+            Intent intent = new Intent(this, main); intent.putExtra("from_profile", true); startActivity(intent);
+        } catch (Exception e) { Toast.makeText(this, "直播暂时无法打开", Toast.LENGTH_LONG).show(); }
+    }
+    @Override protected void onDestroy() { generation++; super.onDestroy(); }
+}
