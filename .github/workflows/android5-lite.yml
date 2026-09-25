@@ -100,6 +100,8 @@ jobs:
 
           已通过 GitHub Actions 的 Android 5.0 API 21 安装、前台启动、方向键及启动期间无崩溃检查。见附件启动截图和 RESULT.txt。
 
+          已知实测限制：2026-09-25 的 API 21 x86 模拟器成功获取视频条目，但 OMX.google.h264.decoder 报 Decoder failed: -2，MediaPlayer 返回 (1, -38)。本流程只检查安装和启动，不代表视频播放通过；电视实机解码尚未验证。
+
           验证范围：未登录个人抖音账号，未验证实时推荐、搜索、直播、视频播放或具体电视硬件。Lite 与最新完整版功能不同，网络接口能否使用需实际联网确认。
 
           下载 myDV-Lite-1.1.9-android5.apk，复制到电视并允许文件管理器安装应用。SHA256SUMS.txt 可用于校验。
@@ -136,6 +138,6 @@ jobs:
           else
             gh release create "$TAG" dist/* \
               --target '${{ github.sha }}' \
-              --title 'myDV Lite 1.1.9 - Android 5.0 verified' \
+              --title 'myDV Lite 1.1.9 - Android 5.0 安装启动验证' \
               --notes-file dist/RELEASE-NOTES.md
           fi
