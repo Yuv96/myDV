@@ -126,6 +126,12 @@ public final class NextVideoCache {
     }
     private void download(String url,File target,int token) {
         if(token!=generation || closed) return;
+        // Reserve room before creating the temporary file: active + download <= 64 MiB.
+        synchronized(this) {
+            File[] files=directory.listFiles((d,n) -> n.endsWith(".mp4"));
+            if(files!=null) for(File f:files) if(!f.equals(activeFile) && !f.equals(target)) f.delete();
+            if(target.exists() && !target.equals(activeFile)) target.delete();
+        }
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
         File part=new File(target.getPath()+".part");
         HttpURLConnection c=null;

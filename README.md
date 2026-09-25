@@ -1,14 +1,16 @@
-# Android 5.0 TV 安装包
+# Android 5.0 TV 修复版
 
-本 Fork 提供原项目发布的 **myDV Lite 1.1.9**，最低系统 Android 5.0 / API 21。APK 保留原始签名和全部字节，支持 TV 启动入口且不要求触摸屏。
+最低系统保持 **Android 5.0 / API 21**。新版基于 Lite 1.1.9，使用 LibVLC 软件解码修复旧系统 H.264 播放路径，并增加下一条 MP4 预缓存。
 
-**[下载 APK](https://github.com/Yuv96/myDV/releases/download/android5-lite-v1.1.9/myDV-Lite-1.1.9-android5.apk)** · [发布说明和校验值](https://github.com/Yuv96/myDV/releases/tag/android5-lite-v1.1.9) · [验证记录](https://github.com/Yuv96/myDV/actions/workflows/android5-lite.yml)
+**[下载修复版 APK](https://github.com/Yuv96/myDV/releases/download/android5-player-v1/myDV-Android5-1.1.9-a5.1.apk)** · [发布说明](https://github.com/Yuv96/myDV/releases/tag/android5-player-v1) · [构建与播放测试](https://github.com/Yuv96/myDV/actions/workflows/android5-player.yml)
 
-自动流程会先核对上游 SHA-256、签名和最低系统版本，再在 Android 5.0 API 21 模拟器安装、启动并发送方向键；检查通过才发布 APK 和截图。无需自行编译，下载后复制到电视安装即可。
+已在 API 21 x86 模拟器验证 H.264 High/Baseline 视频输出、播放进度、下一条提前下载和切换后的缓存命中，也观察到在线推荐视频正常出画面。电视实机、个人账号、直播等仍需实际验证。建议老电视先使用默认 720p。
 
-这是原项目另一个开发者提供的 Lite 版，与最新完整版的功能不同。本次没有重新编译完整版：公开仓库不含 Android 工程，原构建依赖不可访问的 `myDV-Internal`。模拟器检查不覆盖账号登录、实时视频/直播服务或具体电视硬件，相关功能须实际联网确认。
+原版只有视频列表预取，没有下一条视频内容缓存。新版在当前视频播放后预下载下一条完整 MP4，单条上限 32 MiB，总缓存上限 64 MiB。缓存未完成、视频过大、连续快速切换或 CPU 较慢时仍会等待；不承诺所有情况无停顿。
 
-来源：[上游 V1.1.9 发布](https://github.com/mytv-android/myDV/releases/tag/V1.1.9)，文件 `myDV.Lite_1.1.9.apk`；SHA-256：`c01f3b93a7c0b97e481f9f9706a1ff9bc91c3431000be13695b1ca9ffcad69fa`。
+新包名 `com.dycomment.tv.android5`、名称 **myDV Android5**，可与原版并存。原版 Cookie/设置不会自动迁移；登录仍为“返回键 → 设置Cookie”，本次没有新增扫码登录。
+
+公开上游不含 Android 工程，因此这是基于官方 APK 的可复现兼容补丁，不是完整源码重编译。新增 Java 源码、固定依赖与构建过程见 [android5/](android5/)。原始 Lite APK 的安装启动验证发布保留在 [旧版记录](https://github.com/Yuv96/myDV/releases/tag/android5-lite-v1.1.9)。
 
 ---
 

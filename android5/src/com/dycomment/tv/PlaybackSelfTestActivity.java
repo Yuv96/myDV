@@ -66,9 +66,12 @@ public final class PlaybackSelfTestActivity extends Activity {
             } else if(stage==2) {
                 if(Math.abs(position-lastPosition)>600) { fail("pause did not hold"); return; }
                 view.seekTo(500); view.setPlaybackSpeed(1.25f); view.start(); stage=3;
-            } else if(stage==3 && position>2000 && view.isPlaying()) {
+            } else if(stage==3 && position<1600) {
+                // A seek is asynchronous. Observe the new position before checking progress again.
+                stage=4;
+            } else if(stage==4 && position>2200 && view.isPlaying()) {
                 Log.i("Android5SelfTest","PASS API21_H264_HIGH_BASELINE_VIDEO_OUTPUT_CACHE_PAUSE_SEEK_RATE");
-                stage=4; return;
+                stage=5; return;
             }
             handler.postDelayed(this,500);
         }
