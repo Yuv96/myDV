@@ -60,6 +60,35 @@ adb pull /data/local/tmp/settings.xml evidence/settings.xml
 adb exec-out screencap -p > evidence/settings-menu.png
 grep -q 'id/android5_menu_panel' evidence/settings.xml
 grep -q 'id/android5_menu_row_0' evidence/settings.xml
+# Exercise the real author Activity and return through the remote, without an account.
+adb shell input keyevent 4
+adb shell input keyevent 82
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 23
+sleep 3
+adb shell dumpsys activity activities | grep mResumedActivity | grep ProfileActivity
+adb shell uiautomator dump /data/local/tmp/profile.xml
+adb pull /data/local/tmp/profile.xml evidence/profile.xml
+adb exec-out screencap -p > evidence/profile.png
+adb shell input keyevent 4
+sleep 3
+adb shell dumpsys activity activities | grep mResumedActivity | grep MainActivity
+adb exec-out screencap -p > evidence/profile-return.png
+# Account menu must expose only QR login, never raw credential editors.
+adb shell input keyevent 4
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 23
+sleep 1
+adb shell uiautomator dump /data/local/tmp/account.xml
+adb pull /data/local/tmp/account.xml evidence/account.xml
+grep -q '扫码登录' evidence/account.xml
+if grep -q '手动输入\|局域网\|汽水音乐' evidence/account.xml; then exit 1; fi
+adb shell input keyevent 4
+adb shell input keyevent 4
 adb logcat -d -s AndroidRuntime:E > evidence/ui-runtime.txt
 if grep -q 'FATAL EXCEPTION' evidence/ui-runtime.txt; then exit 1; fi
 printf '%s\n' 'PASS: API 21 H.264 High/Baseline video output, advancing playback, next-video prefetch/cache reuse, pause, seek and rate; application launch.' > evidence/RESULT.txt

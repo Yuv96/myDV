@@ -27,6 +27,10 @@ bash android5/smoke.sh
 
 私钥、Cookie、Token、用户接口响应不得进入仓库、构建日志或发行附件。Actions 只需要公开源码和测试数据。
 
+## 代码风格
+
+Java 使用 google-java-format 1.22.0 的 `--aosp` 格式（四空格缩进）。共享主题、账号状态、图片加载和旧 ABI 桥接分别放在独立类中；避免在界面回调中直接做网络或磁盘操作。
+
 ## 模块边界
 
 `PlayerView` 管理 LibVLC 和画面生命周期；`PlaybackCoordinator` 管理选择序号、异步结果过期及超时；`NextVideoCache` 只缓存容量范围内的完整下一条视频。
