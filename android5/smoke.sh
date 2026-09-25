@@ -85,8 +85,9 @@ adb shell input keyevent 23
 sleep 1
 adb shell uiautomator dump /data/local/tmp/account.xml
 adb pull /data/local/tmp/account.xml evidence/account.xml
-grep -q '扫码登录' evidence/account.xml
-if grep -q '手动输入\|局域网\|汽水音乐' evidence/account.xml; then exit 1; fi
+# API21's uiautomator dump loses Chinese text; verify the single QR row by stable IDs.
+grep -q 'id/android5_menu_row_0' evidence/account.xml
+if grep -q 'id/android5_menu_row_1' evidence/account.xml; then exit 1; fi
 adb shell input keyevent 4
 adb shell input keyevent 4
 adb logcat -d -s AndroidRuntime:E > evidence/ui-runtime.txt
