@@ -103,7 +103,7 @@ public final class SocialApi {
         String flag = enabled ? "1" : "0";
         if (action == 0) request("/aweme/v1/web/commit/item/digg/", params("aweme_id", id, "type", flag, "item_type", "0"), true, session);
         else if (action == 1) request("/aweme/v1/web/commit/follow/user/", params("user_id", uid, "sec_user_id", secUid, "type", flag, "from", "18", "from_pre", "0"), true, session);
-        else if (action == 2) request("/aweme/v1/web/aweme/collect/", params("aweme_id", id, "action", flag), true, session);
+        else if (action == 2) request("/aweme/v1/web/aweme/collect/", params("aweme_id", id, "action", flag, "aweme_type", "0"), true, session);
         else throw new IllegalArgumentException("unsupported action");
     }
     /** Notification badges only. Does not fetch messages or mark anything read. */
