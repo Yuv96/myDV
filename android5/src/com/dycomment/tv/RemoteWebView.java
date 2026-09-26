@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.os.SystemClock;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.webkit.WebView;
@@ -13,6 +14,8 @@ final class RemoteWebView extends WebView {
     private final Paint pointer = new Paint(Paint.ANTI_ALIAS_FLAG);
     private float x = -1, y = -1;
     private long pressed;
+    private int routedKeys, touchDowns, touchUps;
+    private boolean lastTouchAccepted;
 
     RemoteWebView(Context context) {
         super(context);
@@ -29,9 +32,41 @@ final class RemoteWebView extends WebView {
     }
 
     private void touch(int action) {
-        MotionEvent event = MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), action, x, y, 0);
-        super.onTouchEvent(event);
+        MotionEvent.PointerProperties finger = new MotionEvent.PointerProperties();
+        finger.id = 0;
+        finger.toolType = MotionEvent.TOOL_TYPE_FINGER;
+        MotionEvent.PointerCoords point = new MotionEvent.PointerCoords();
+        point.x = x;
+        point.y = y;
+        point.pressure = action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL ? 0 : 1;
+        point.size = 1;
+        MotionEvent event = MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), action, 1,
+                new MotionEvent.PointerProperties[] {finger}, new MotionEvent.PointerCoords[] {point},
+                0, 0, 1, 1, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+        if (action == MotionEvent.ACTION_DOWN) touchDowns++;
+        if (action == MotionEvent.ACTION_UP) touchUps++;
+        lastTouchAccepted = super.onTouchEvent(event);
         event.recycle();
+    }
+
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        if ((code >= KeyEvent.KEYCODE_DPAD_UP && code <= KeyEvent.KEYCODE_DPAD_RIGHT)
+                || code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
+            // WebView delegates dispatchKeyEvent directly to Chromium on some API21 providers,
+            // bypassing the View.onKeyDown/onKeyUp overrides. Own pointer keys before that path.
+            routedKeys++;
+            if (event.getAction() == KeyEvent.ACTION_DOWN) return onKeyDown(code, event);
+            if (event.getAction() == KeyEvent.ACTION_UP) return onKeyUp(code, event);
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    String pointerDiagnostics() {
+        return "keys=" + routedKeys + " down=" + touchDowns + " up=" + touchUps
+                + " accepted=" + lastTouchAccepted + " pointer=" + x + "," + y
+                + " viewport=" + getWidth() + "x" + getHeight();
     }
 
     void cancelPointer() {

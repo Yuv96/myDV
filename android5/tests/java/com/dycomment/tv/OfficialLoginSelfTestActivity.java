@@ -95,8 +95,11 @@ public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
                     require("1".equals(value), "official login button clicked once");
                     browser.requestFocus();
                     browser.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER));
-                    browser.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER));
-                    test.postDelayed(() -> verifyRemote(), 400);
+                    test.postDelayed(() -> {
+                        if (browser == null) { failed(new Exception("browser closed during remote press")); return; }
+                        browser.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER));
+                        test.postDelayed(() -> verifyRemote(), 400);
+                    }, 120);
                 } catch (Exception failure) { failed(failure); }
             });
         } catch (Exception failure) { failed(failure); }
@@ -105,6 +108,17 @@ public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
     private void verifyRemote() {
         if (browser == null) { failed(new Exception("browser closed early")); return; }
         browser.evaluateJavascript("window.clicked||0", count -> {
+            if (!"2".equals(count)) {
+                Log.i(TAG, "REMOTE_DIAGNOSTIC clicks=" + count + " " + browser.pointerDiagnostics());
+                browser.evaluateJavascript("(function(){var b=document.querySelector('button'),r=b.getBoundingClientRect();"
+                        + "var e=document.elementFromPoint(innerWidth/2,innerHeight/2);"
+                        + "return {button_rect:[r.left,r.top,r.width,r.height],viewport:[innerWidth,innerHeight],"
+                        + "center_is_button:e===b};})()", geometry -> {
+                    Log.i(TAG, "REMOTE_FIXTURE_GEOMETRY " + geometry);
+                    failed(new Exception("remote pointer activates real webpage button"));
+                });
+                return;
+            }
             try {
                 require("2".equals(count), "remote pointer activates real webpage button");
                 dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK));
