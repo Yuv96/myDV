@@ -31,7 +31,7 @@ jobs:
           secret = match.group(1)
           export = pathlib.Path('sanitized-ui')
           export.mkdir()
-          for prefix in ['ProfileActivity', 'FeaturedActivity', 'SearchActivity']:
+          for prefix in ['ProfileActivity', 'FeaturedActivity', 'SearchActivity', 'MainActivity']:
               for path in package.glob(prefix+'*.smali'):
                   body = path.read_text().replace(secret, '""')
                   if secret != '""' and secret in body:
