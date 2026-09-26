@@ -87,6 +87,30 @@ final class LegacyThemeSelfTest {
         LegacyTheme.drawableColor((GradientDrawable) tab.getBackground(), 0xfffe2c55);
         require(tab.isSelected() && pixel(tab.getBackground(), 32, 32) == UiTheme.BLACK,
                 "in-place selected accent preserves a black fill");
+        TextView legacyButton = new TextView(activity);
+        legacyButton.setText("返回");
+        legacyButton.setFocusable(true);
+        final int[] legacyCalls = {0};
+        legacyButton.setOnFocusChangeListener((view, focused) -> {
+            legacyCalls[0]++;
+            view.setBackgroundColor(focused ? 0xff444455 : 0xff333344);
+            view.setScaleX(focused ? 1.1f : 0.95f);
+            view.setScaleY(focused ? 1.1f : 0.95f);
+            view.setElevation(8f);
+        });
+        java.util.WeakHashMap<View, Boolean> styled = new java.util.WeakHashMap<>();
+        LegacyTheme.styleNew(legacyButton, styled);
+        View.OnFocusChangeListener installed = legacyButton.getOnFocusChangeListener();
+        LegacyTheme.styleNew(legacyButton, styled);
+        require(installed == legacyButton.getOnFocusChangeListener(),
+                "later layouts do not repeatedly wrap the installed listener");
+        installed.onFocusChange(legacyButton, true);
+        installed.onFocusChange(legacyButton, false);
+        require(legacyCalls[0] == 2, "external legacy listener runs exactly once per focus event");
+        require(legacyButton.getScaleX() == 1f && legacyButton.getScaleY() == 1f
+                        && legacyButton.getElevation() == 0f
+                        && pixel(legacyButton.getBackground(), 32, 32) == UiTheme.BLACK,
+                "external focus listener cannot restore its old gray fill or zoom after blur");
         android.util.Log.i("Android5InteractionTest", "LEGACY_THEME_GRADIENT_FOCUS_USER_TEXT_OK");
     }
 

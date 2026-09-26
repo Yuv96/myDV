@@ -37,7 +37,15 @@ public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
                     "sessionid=fixture-stale-browser; Secure; HttpOnly; Path=/");
         }
         super.onCreate(state);
-        if (probe) test.postDelayed(() -> observeOfficialPage(), 35000);
+        if (probe) {
+            // Set the anonymous test window policy before API21 creates its first Surface.
+            // No screenshot is requested until the later DOM-redaction acknowledgement.
+            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+            Log.i(TAG, "LIVE_WINDOW_POLICY initial_secure="
+                    + ((getWindow().getAttributes().flags
+                    & android.view.WindowManager.LayoutParams.FLAG_SECURE) != 0));
+            test.postDelayed(() -> observeOfficialPage(), 35000);
+        }
     }
 
     @Override void openOfficialPage(RemoteWebView view) {
@@ -185,6 +193,9 @@ public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
             if (!probe || !screenshotSafe) throw new IllegalStateException("screenshot requires redacted probe");
             getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
             test.postDelayed(() -> {
+                Log.i(TAG, "LIVE_WINDOW_POLICY redacted_secure="
+                        + ((getWindow().getAttributes().flags
+                        & android.view.WindowManager.LayoutParams.FLAG_SECURE) != 0));
                 Log.i(TAG, "LIVE_SCREENSHOT_READY adb-redacted-surface");
                 Log.i(TAG, "LIVE_PROBE_DONE anonymous page observation only; login not validated");
             }, 400);

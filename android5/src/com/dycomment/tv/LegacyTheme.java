@@ -40,7 +40,7 @@ public final class LegacyTheme {
         styleNew(content, styled);
     }
 
-    private static void styleNew(View view, WeakHashMap<View, Boolean> styled) {
+    static void styleNew(View view, WeakHashMap<View, Boolean> styled) {
         if (!styled.containsKey(view)) {
             styled.put(view, Boolean.TRUE);
             if (view instanceof TextView) {
@@ -61,7 +61,12 @@ public final class LegacyTheme {
                     }
                 }
             }
-            if (view.isFocusable()) control(view);
+            if (view.isFocusable()) {
+                // AnimHelper installs some listeners outside the patched Activity methods.
+                // The per-view styled guard keeps this final wrapper stable across layouts.
+                focusListener(view, view.getOnFocusChangeListener());
+                control(view);
+            }
         }
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
