@@ -160,8 +160,8 @@ public final class CommentsSelfTestActivity extends Activity {
             int[] inside = {size / 4, size / 2, size * 3 / 4};
             for (int x : inside) {
                 int pixel = rendered.getPixel(x, size / 2);
-                require(placeholder ? Color.alpha(pixel) == 0x26 : pixel == centerColor,
-                        placeholder ? "round placeholder remains visible"
+                require(placeholder ? pixel == 0x26ffffff : pixel == centerColor,
+                        placeholder ? "round placeholder is visible without previous image pixels"
                                 : "loaded avatar remains visible and center cropped");
             }
             rendered.eraseColor(Color.BLUE);
@@ -189,7 +189,8 @@ public final class CommentsSelfTestActivity extends Activity {
             avatar.setImageBitmap(loaded);
             requireCircularPixels(avatar, Color.GREEN, false);
             loader.bind(avatar, "");
-            require(avatar.getDrawable() == null, "recycled avatar clears the previous image");
+            // API21 may retain an empty BitmapDrawable after setImageBitmap(null).
+            // The rendered placeholder must return with no pixels from the old bitmap.
             requireCircularPixels(avatar, 0, true);
         } finally {
             avatar.setImageBitmap(null);

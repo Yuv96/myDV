@@ -22,7 +22,7 @@ SELF_TEST=1 python3 android5/build.py
 bash android5/smoke.sh
 ```
 
-测试包输出到 `dist-test/`。测试只用生成的视频和本地数据，不需要个人 Cookie，不发送真实点赞、关注或私信。`SELF_TEST=1` 会开放测试 Activity，不能将该 APK 当作发行版。
+测试包输出到 `dist-test/`。功能回归只用生成的视频和合成数据，不需要个人 Cookie，不发送真实点赞、关注或私信。另有匿名官方网页兼容性观察，只记录内核、页面状态和遮挡二维码后的截图，不代替真实扫码验证。`SELF_TEST=1` 会开放测试 Activity，不能将该 APK 当作发行版。
 
 ## 签名
 
