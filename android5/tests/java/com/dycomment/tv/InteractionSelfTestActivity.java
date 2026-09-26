@@ -248,6 +248,7 @@ public final class InteractionSelfTestActivity extends Activity {
                             () -> cancelled[0]++,
                             () -> menu[0]++);
             require(panel.rows.length == 5 && ModernMenuHelper.isMenuShowing(), "five large rows");
+            require(panel.rows[0].isFocused(), "menu takes focus from the video even in touch mode");
             panel.rows[2].performClick();
             require(selected[0] == 2 && !panel.closed, "actions keep panel open");
             panel.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MENU));

@@ -180,6 +180,7 @@ public final class ModernMenuHelper {
                 row.setGravity(Gravity.CENTER_VERTICAL);
                 row.setPadding(dp(a, 18), dp(a, 10), dp(a, 10), dp(a, 10));
                 row.setFocusable(true);
+                row.setFocusableInTouchMode(true);
                 row.setClickable(true);
                 row.setSingleLine(true);
                 row.setBackground(background(false));
