@@ -4,7 +4,9 @@
 
 ## 环境
 
-需要 JDK 17、Python 3.10+、Android SDK Platform 35 与 Build Tools 35.0.0。回归构建另外需要 FFmpeg；模拟器需要 API 21 x86 系统镜像。
+本地仅允许源码编辑、接口联调和 Git 提交，禁止本地编译和测试。以下命令仅在 GitHub Actions runner 执行，可用 `gh run list`、`gh run view` 查看结果。
+
+GitHub runner 需要 JDK 17、Python 3.10+、Android SDK Platform 35 与 Build Tools 35.0.0。回归构建另外需要 FFmpeg；模拟器需要 API 21 x86 系统镜像。
 
 ```sh
 export ANDROID_HOME=/path/to/android-sdk
@@ -23,7 +25,7 @@ bash android5/smoke.sh
 
 ## 签名
 
-本地可指定 `ANDROID5_KEYSTORE` 与 `ANDROID5_KEYSTORE_PASSWORD`，别名为 `android5`。不指定时产生仅适用于开发验证的签名。CI 默认签名不代表维护者发行签名。CI 可配置 `ANDROID5_KEYSTORE_BASE64`（可选密码 `ANDROID5_KEYSTORE_PASSWORD`）；未配置时仅生成开发签名产物。发行时必须用既有维护者密钥签署已通过 CI 的生产 APK，并比较重签前后的非签名 ZIP 条目一致、重新生成 SHA256SUMS.txt，再以 `REQUIRE_RELEASE_SIGNER=1 python3 android5/verify_release.py` 校验与已发布 a5.4 的证书一致。不要发布不能覆盖旧版的临时签名安装包。
+GitHub runner 可指定 `ANDROID5_KEYSTORE` 与 `ANDROID5_KEYSTORE_PASSWORD`，别名为 `android5`。不指定时产生仅适用于开发验证的签名。CI 默认签名不代表维护者发行签名。CI 可配置 `ANDROID5_KEYSTORE_BASE64`（可选密码 `ANDROID5_KEYSTORE_PASSWORD`）；未配置时仅生成开发签名产物。发行时必须用既有维护者密钥签署已通过 CI 的生产 APK，并比较重签前后的非签名 ZIP 条目一致、重新生成 SHA256SUMS.txt，再以 `REQUIRE_RELEASE_SIGNER=1 python3 android5/verify_release.py` 校验与已发布 a5.4 的证书一致。不要发布不能覆盖旧版的临时签名安装包。
 
 私钥、Cookie、Token、用户接口响应不得进入仓库、构建日志或发行附件。Actions 只需要公开源码和测试数据。
 

@@ -5,3 +5,4 @@ dist-test/
 *.jks
 *.keystore
 __pycache__/
+.local-debug/

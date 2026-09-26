@@ -316,8 +316,11 @@ public final class SwitchingSelfTestActivity extends Activity
                                 if ((clockParams.gravity
                                                 & android.view.Gravity
                                                         .RELATIVE_HORIZONTAL_GRAVITY_MASK)
-                                        != android.view.Gravity.START)
-                                    throw new Exception("clock is not at the left/start edge");
+                                        != android.view.Gravity.RIGHT
+                                        || (clockParams.gravity
+                                                        & android.view.Gravity.VERTICAL_GRAVITY_MASK)
+                                                != android.view.Gravity.TOP)
+                                    throw new Exception("clock is not at the top-right corner");
                                 Log.i("Android5SwitchTest", "METADATA_TIMER_MENU_AND_CLOCK_OK");
                                 Log.i(
                                         "Android5SwitchTest",

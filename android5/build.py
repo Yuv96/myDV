@@ -181,9 +181,10 @@ text=text.replace('package="com.dycomment.tv"','package="com.dycomment.tv.androi
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.PlaybackSelfTestActivity" android:exported="true" />\n    </application>')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.FollowedLiveActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.InteractionSelfTestActivity" android:exported="true" />\n</application>')
 text=text.replace("</application>",'<activity android:name="com.dycomment.tv.SwitchingSelfTestActivity" android:exported="true" />\n</application>')
+text=text.replace("</application>",'<activity android:name="com.dycomment.tv.CommentsSelfTestActivity" android:exported="true" />\n</application>')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.QuickShareActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.SurfaceCoverTestActivity" android:exported="false" />\n</application>')
 if not SELF_TEST:
-    text=re.sub(r'<activity[^>]+android:name="com.dycomment.tv.(?:PlaybackSelfTestActivity|InteractionSelfTestActivity|SwitchingSelfTestActivity|SurfaceCoverTestActivity)"[^>]*/>', '', text)
+    text=re.sub(r'<activity[^>]+android:name="com.dycomment.tv.(?:PlaybackSelfTestActivity|InteractionSelfTestActivity|SwitchingSelfTestActivity|CommentsSelfTestActivity|SurfaceCoverTestActivity)"[^>]*/>', '', text)
 manifest.write_text(text)
 ids=decoded/'res/values/ids.xml'
 names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel','android5_follow_badge'] + [f'android5_menu_row_{i}' for i in range(32)]
@@ -212,9 +213,10 @@ for element in [card,row,column,column[1]]:
 card.set(a+'layout_gravity','bottom|start')
 card.set(a+'visibility','gone')
 clock=next(e for e in tree.iter() if e.get(a+'id')=='@id/tvClock')
-clock.set(a+'layout_gravity','start|top')
-clock.set(a+'layout_marginStart','16dp')
-clock.attrib.pop(a+'layout_marginEnd',None)
+clock.set(a+'layout_gravity','right|top')
+clock.set(a+'layout_marginRight','16dp')
+for key in ['layout_marginStart','layout_marginEnd','layout_marginLeft']:
+    clock.attrib.pop(a+key,None)
 for key in ['paddingBottom','paddingStart','paddingEnd']: card.attrib.pop(a+key,None)
 card.set(a+'padding','0dp'); card.set(a+'layout_marginStart','18dp'); card.set(a+'layout_marginEnd','18dp'); card.set(a+'layout_marginBottom','48dp')
 column.set(a+'padding','12dp'); column.set(a+'background','@drawable/android5_video_card')

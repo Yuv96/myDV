@@ -19,6 +19,18 @@ cat evidence/interaction-test.txt
 grep -q 'PASS API21_MENU_KEYS_SOCIAL_PARSERS' evidence/interaction-test.txt
 if grep -q 'FAIL\|FATAL EXCEPTION' evidence/interaction-test.txt; then exit 1; fi
 adb logcat -c
+adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.CommentsSelfTestActivity
+passed=false
+for attempt in $(seq 1 35); do
+  sleep 2
+  adb logcat -d -s Android5CommentsTest:I AndroidRuntime:E > evidence/comments-test.txt
+  if grep -q 'FAIL\|FATAL EXCEPTION' evidence/comments-test.txt; then cat evidence/comments-test.txt; exit 1; fi
+  if grep -q 'PASS API21_COMMENTS_READ_ONLY_SCROLL_PAGING_LIFECYCLE' evidence/comments-test.txt; then passed=true; break; fi
+done
+cat evidence/comments-test.txt
+$passed
+adb pull /sdcard/Android/data/com.dycomment.tv.android5/files/comments-populated.png evidence/comments-populated.png
+adb logcat -c
 adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.PlaybackSelfTestActivity
 passed=false
 for attempt in $(seq 1 30); do
