@@ -10,7 +10,7 @@ trap collect_diagnostics EXIT
 test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 21
 adb shell wm size 1280x720
 adb shell wm density 160
-adb install -r dist-test/Douyin-TV-0.1.0.apk
+adb install -r dist-test/Douyin-TV-0.1.1.apk
 adb logcat -c
 adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.InteractionSelfTestActivity
 sleep 3

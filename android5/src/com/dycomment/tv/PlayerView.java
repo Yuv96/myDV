@@ -117,7 +117,7 @@ public class PlayerView extends FrameLayout implements IVLCVout.OnNewVideoLayout
                                             "--file-caching=200",
                                             "--no-video-title-show",
                                             "--no-snapshot-preview")));
-            engine.setUserAgent("Douyin TV 0.1.0", NextVideoCache.USER_AGENT);
+            engine.setUserAgent("Douyin TV 0.1.1", NextVideoCache.USER_AGENT);
         }
         return engine;
     }

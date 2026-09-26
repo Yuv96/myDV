@@ -248,7 +248,7 @@ tree.write(layout,encoding='utf-8',xml_declaration=True)
 assert not list(package.glob('PlayerView*.smali')), 'before cleanup'
 cleanup(decoded)
 assert not list(package.glob('PlayerView*.smali')), 'after cleanup'
-config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1005').replace('versionName: 1.1.9','versionName: 0.1.0')
+config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1006').replace('versionName: 1.1.9','versionName: 0.1.1')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
@@ -287,7 +287,7 @@ password=os.environ.get('ANDROID5_KEYSTORE_PASSWORD','android5-build')
 if not pathlib.Path(keystore).exists():
     run('keytool','-genkeypair','-keystore',keystore,'-storetype','PKCS12','-storepass',password,'-keypass',password,
         '-alias','android5','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=myDV Android5 Community')
-apk=DIST/'Douyin-TV-0.1.0.apk'
+apk=DIST/'Douyin-TV-0.1.1.apk'
 os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)

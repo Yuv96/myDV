@@ -25,6 +25,7 @@ jobs:
       - name: Prepare Android tools and signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID5_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID5_KEYSTORE_PASSWORD }}
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'build-tools;35.0.0' >/dev/null
           sudo apt-get update -qq
@@ -32,6 +33,15 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android5.p12"
             echo "ANDROID5_KEYSTORE=$RUNNER_TEMP/android5.p12" >> "$GITHUB_ENV"
+            echo "REQUIRE_RELEASE_SIGNER=1" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$KEYSTORE_PASSWORD" ]; then
+            delimiter="SIGNING_PASSWORD_$(openssl rand -hex 16)"
+            {
+              echo "ANDROID5_KEYSTORE_PASSWORD<<$delimiter"
+              printf '%s\n' "$KEYSTORE_PASSWORD"
+              echo "$delimiter"
+            } >> "$GITHUB_ENV"
           fi
       - name: Compile API-21 regression build
         run: SELF_TEST=1 python3 android5/build.py

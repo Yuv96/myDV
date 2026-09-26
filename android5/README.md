@@ -1,6 +1,6 @@
 # 开发与构建
 
-应用：抖音抬头版 0.1.0。最低 API 21，目标 API 30，包名 `com.dycomment.tv.android5`，版本号 1005。保留既有签名才能覆盖此前的 Android5 社区版。
+应用：抖音抬头版 0.1.1。最低 API 21，目标 API 30，包名 `com.dycomment.tv.android5`，版本号 1006。保留既有签名才能覆盖此前的 Android5 社区版。
 
 ## 环境
 
@@ -12,7 +12,7 @@ python3 android5/build.py
 python3 android5/verify_release.py
 ```
 
-正式包输出到 `dist/Douyin-TV-0.1.0.apk`，不包含测试 Activity 或测试视频。`BUILD_WORK=/tmp/douyin-build` 可指定临时构建目录；依赖下载后校验固定 SHA-256。
+正式包输出到 `dist/Douyin-TV-0.1.1.apk`，不包含测试 Activity 或测试视频。`BUILD_WORK=/tmp/douyin-build` 可指定临时构建目录；依赖下载后校验固定 SHA-256。
 
 ```sh
 SELF_TEST=1 python3 android5/build.py
@@ -23,7 +23,7 @@ bash android5/smoke.sh
 
 ## 签名
 
-本地可指定 `ANDROID5_KEYSTORE` 与 `ANDROID5_KEYSTORE_PASSWORD`，别名为 `android5`。不指定时产生仅适用于开发验证的签名。CI 默认签名不代表维护者发行签名；Release 必须使用既有维护者证书签署通过 CI 的正式 APK，并检查 APK 除签名记录之外的内容一致。
+本地可指定 `ANDROID5_KEYSTORE` 与 `ANDROID5_KEYSTORE_PASSWORD`，别名为 `android5`。不指定时产生仅适用于开发验证的签名。CI 默认签名不代表维护者发行签名。CI 可配置 `ANDROID5_KEYSTORE_BASE64`（可选密码 `ANDROID5_KEYSTORE_PASSWORD`）；未配置时仅生成开发签名产物。发行时必须用既有维护者密钥签署已通过 CI 的生产 APK，并比较重签前后的非签名 ZIP 条目一致、重新生成 SHA256SUMS.txt，再以 `REQUIRE_RELEASE_SIGNER=1 python3 android5/verify_release.py` 校验与已发布 a5.4 的证书一致。不要发布不能覆盖旧版的临时签名安装包。
 
 私钥、Cookie、Token、用户接口响应不得进入仓库、构建日志或发行附件。Actions 只需要公开源码和测试数据。
 

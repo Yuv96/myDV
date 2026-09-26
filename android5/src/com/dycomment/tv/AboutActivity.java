@@ -9,7 +9,7 @@ public final class AboutActivity extends Activity {
     @Override
     public void onCreate(Bundle b) {
         super.onCreate(b);
-        LinearLayout root = UiTheme.page(this, "抖音抬头版 0.1.0");
+        LinearLayout root = UiTheme.page(this, "抖音抬头版 0.1.1");
         ScrollView scroll = new ScrollView(this);
         scroll.addView(
                 UiTheme.text(
