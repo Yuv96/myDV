@@ -248,7 +248,9 @@ public final class InteractionSelfTestActivity extends Activity {
                             () -> cancelled[0]++,
                             () -> menu[0]++);
             require(panel.rows.length == 5 && ModernMenuHelper.isMenuShowing(), "five large rows");
-            require(panel.rows[0].isFocused(), "menu takes focus from the video even in touch mode");
+            require(
+                    panel.rows[0].isFocused(),
+                    "menu takes focus from the video even in touch mode");
             panel.rows[2].performClick();
             require(selected[0] == 2 && !panel.closed, "actions keep panel open");
             panel.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MENU));
@@ -379,5 +381,15 @@ public final class InteractionSelfTestActivity extends Activity {
                 android.view.View.MeasureSpec.makeMeasureSpec(
                         ModernMenuHelper.dp(this, 720), android.view.View.MeasureSpec.EXACTLY));
         root.layout(0, 0, root.getMeasuredWidth(), root.getMeasuredHeight());
+        android.view.View avatar =
+                root.findViewById(
+                        getResources().getIdentifier("ivAuthorAvatar", "id", getPackageName()));
+        android.view.View author =
+                root.findViewById(getResources().getIdentifier("tvAuthor", "id", getPackageName()));
+        android.view.View card = (android.view.View) author.getParent().getParent();
+        require(
+                avatar.getMeasuredWidth() == avatar.getMeasuredHeight()
+                        && avatar.getMeasuredHeight() == card.getMeasuredHeight(),
+                "square avatar follows actual card height at every width");
     }
 }

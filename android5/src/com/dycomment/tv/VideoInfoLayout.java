@@ -2,6 +2,8 @@ package com.dycomment.tv;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 /** Content-sized metadata with a ceiling, never a fixed-width strip over the video. */
@@ -21,5 +23,17 @@ public final class VideoInfoLayout extends LinearLayout {
             widthSpec = MeasureSpec.makeMeasureSpec(ceiling, MeasureSpec.AT_MOST);
         }
         super.onMeasure(widthSpec, heightSpec);
+        // The text card determines avatar size. Remeasure when its width changes the wrapping.
+        if (getChildCount() == 0 || !(getChildAt(0) instanceof ViewGroup)) return;
+        ViewGroup row = (ViewGroup) getChildAt(0);
+        if (row.getChildCount() < 2) return;
+        View avatar = row.getChildAt(0), card = row.getChildAt(1);
+        ViewGroup.LayoutParams avatarParams = avatar.getLayoutParams();
+        for (int pass = 0; pass < 3; pass++) {
+            int side = card.getMeasuredHeight();
+            if (side <= 0 || (avatarParams.width == side && avatarParams.height == side)) break;
+            avatarParams.width = avatarParams.height = side;
+            super.onMeasure(widthSpec, heightSpec);
+        }
     }
 }

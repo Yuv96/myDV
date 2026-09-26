@@ -101,6 +101,8 @@ public final class SwitchingSelfTestActivity extends Activity
         return InteractionController.field(feed, name);
     }
 
+    private int metadataEpoch = -1;
+
     private void key(int key) {
         feed.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, key));
         feed.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, key));
@@ -131,8 +133,8 @@ public final class SwitchingSelfTestActivity extends Activity
                                 && outputs > 0
                                 && player.getCurrentPosition() > 800
                                 && largeRequests.get() > 0) {
-                            if (((View) field("infoOverlay")).getVisibility() != View.VISIBLE)
-                                throw new Exception("metadata not committed on video output");
+                            if (metadataEpoch != PlaybackCoordinator.token(feed))
+                                throw new Exception("first-frame metadata was not observed");
                             heapBefore = android.os.Debug.getNativeHeapAllocatedSize();
                             staleToken = PlaybackCoordinator.token(feed);
                             Constructor<?> ctor =
@@ -185,8 +187,9 @@ public final class SwitchingSelfTestActivity extends Activity
                         } else if (stage == 2 && outputs > 0 && player.getCurrentPosition() > 800) {
                             if ((Integer) field("currentIndex") != 0)
                                 throw new Exception("returned to wrong video");
-                            if (((View) field("infoOverlay")).getVisibility() != View.VISIBLE)
-                                throw new Exception("returned metadata missing");
+                            if (metadataEpoch != PlaybackCoordinator.token(feed))
+                                throw new Exception(
+                                        "returned first-frame metadata was not observed");
                             Log.i(
                                     "Android5SwitchTest",
                                     "RAPID_ROUNDTRIP_RECOVERED cycles=" + cycles);
@@ -439,7 +442,20 @@ public final class SwitchingSelfTestActivity extends Activity
             player = (PlayerView) field("videoView");
             player.setOnInfoListener(
                     (p, w, e) -> {
-                        if (w == 3) outputs++;
+                        if (w == 3) {
+                            int selection = PlaybackCoordinator.token(a);
+                            if (selection != metadataEpoch) {
+                                try {
+                                    if (((View) field("infoOverlay")).getVisibility()
+                                            != View.VISIBLE)
+                                        throw new Exception("first-frame metadata missing");
+                                    metadataEpoch = selection;
+                                } catch (Exception failure) {
+                                    fail(failure.getMessage());
+                                }
+                            }
+                            outputs++;
+                        }
                         return false;
                     });
         } catch (Exception e) {
