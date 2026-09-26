@@ -205,7 +205,7 @@ def capture(webview):
 
 
 def summarize_event(event):
-    data = event.get("data") or {}
+    data = event.get("payload") or event.get("data") or {}
     parsed = urlsplit(str(data.get("url", "")))
     host = parsed.hostname or ""
     known_paths = {
@@ -271,8 +271,9 @@ def main():
     parser.add_argument("--runtime", type=Path, default=PRIVATE / "controller.json")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("start").add_argument("--proxy", help="可选的 agent-webview HTTP 代理")
-    for name in ("status", "login", "capture", "events", "close", "qr"):
+    for name in ("status", "login", "capture", "close", "qr"):
         sub.add_parser(name)
+    sub.add_parser("events").add_argument("--after", type=int, default=0)
     read = sub.add_parser("probe")
     read.add_argument("target", choices=["self", "video", "friends"])
     read.add_argument("--id")
@@ -304,9 +305,10 @@ def main():
             elif args.command == "capture":
                 result = capture(webview)
             elif args.command == "events":
-                events = webview.session("/events?after=0&limit=200&timeout=0")
+                events = webview.session(f"/events?after={max(0, args.after)}&limit=200&timeout=0")
                 result = {"events": [summary for e in events.get("events", [])
                                       if (summary := summarize_event(e)) is not None],
+                          "next_sequence": max((e.get("sequence", 0) for e in events.get("events", [])), default=args.after),
                           "note": "仅页面探针可见的近期请求；HTTP 200 不代表业务成功。"}
             else:
                 webview.session(method="DELETE")

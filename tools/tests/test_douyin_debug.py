@@ -211,20 +211,36 @@ class BoundaryTests(OfflineTest):
                 debug.official_page({"url": url})
 
     def test_event_summary_excludes_query_headers_bodies_and_unknown_paths(self):
-        data = {"url": "https://login.douyin.com/passport/web/check_qrconnect/?token=query-secret",
-                "method": "POST", "status": 200, "headers": {"Cookie": "header-secret"},
-                "request_body": "request-secret", "response_body": "response-secret"}
-        self.assertEqual(debug.summarize_event({"data": data}), {
-            "host": "login.douyin.com", "path": "/passport/web/check_qrconnect/",
-            "method": "POST", "http_status": 200})
-        data.update(method="method-secret", status="status-secret")
-        summary = debug.summarize_event({"data": data})
-        self.assertIsNone(summary["method"])
-        self.assertIsNone(summary["http_status"])
-        self.assertNotIn("secret", json.dumps(summary))
-        for url in ["https://evil.example/passport/web/check_qrconnect/",
-                    "https://login.douyin.com/private-account-path"]:
-            self.assertIsNone(debug.summarize_event({"data": {"url": url}}))
+        for field in ["payload", "data"]:
+            with self.subTest(schema=field):
+                payload = {
+                    "url": "https://login.douyin.com/passport/web/check_qrconnect/?token=query-secret",
+                    "method": "POST", "status": 200, "headers": {"Cookie": "header-secret"},
+                    "request_body": "request-secret", "response_body": "response-secret"}
+                event = {"sequence": 42, "timestamp": "2026-09-26T00:00:00Z",
+                         "kind": "network.response", field: payload}
+                self.assertEqual(debug.summarize_event(event), {
+                    "host": "login.douyin.com", "path": "/passport/web/check_qrconnect/",
+                    "method": "POST", "http_status": 200})
+                payload.update(method="method-secret", status="status-secret")
+                summary = debug.summarize_event(event)
+                self.assertIsNone(summary["method"])
+                self.assertIsNone(summary["http_status"])
+                self.assertNotIn("secret", json.dumps(summary))
+                for url in ["https://evil.example/passport/web/check_qrconnect/",
+                            "https://login.douyin.com/private-account-path"]:
+                    payload["url"] = url
+                    self.assertIsNone(debug.summarize_event(event))
+
+    def test_event_public_payload_takes_precedence_over_legacy_data(self):
+        event = {"sequence": 43, "timestamp": "2026-09-26T00:00:01Z",
+                 "kind": "network.response",
+                 "payload": {"url": "https://www.douyin.com" + debug.SELF,
+                             "method": "GET", "status": 200},
+                 "data": {"url": "https://evil.example/legacy-secret"}}
+        self.assertEqual(debug.summarize_event(event), {
+            "host": "www.douyin.com", "path": debug.SELF,
+            "method": "GET", "http_status": 200})
 
     def test_passport_redirect_allowlist(self):
         for url in ["https://douyin.com/", "https://login.douyin.com/path",
