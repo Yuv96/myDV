@@ -34,11 +34,13 @@
 - [x] 制作极简矢量 TV 图标、自适应资源和带中文名称的 TV 横幅；生成与尺寸检查仅在 GitHub 执行。
 - [x] 正式包缺少原密钥时直接失败；增加已发布 APK 证书比对和 API 21 实际升级安装检查。
 - [ ] 找回原正式签名密钥并配置仓库 Secrets。已检查现存 Secrets、Environment、缓存、历史工作流及 Git 历史，尚未找到持久保存记录。
-- [ ] GitHub 验证新图标及 v0.1.2 构建；合并 main，并在签名一致后发布。
+- [x] GitHub 已生成并验证新图标、TV 横幅，API 21 界面和播放回归通过；代码已合并 `main`（`a499c32`）。
+- [ ] v0.1.2 正式构建、实际覆盖安装及发布：缺少原私钥，流程在生成正式 APK 前停止。签名恢复说明见 [SIGNING-RECOVERY.md](SIGNING-RECOVERY.md)。
 
-- Android 源码提交 `41adbb8`：[GitHub 编译、API 21 回归及正式 APK 检查通过](https://github.com/Yuv96/myDV/actions/runs/36215763358)，同页可下载 `android5-player-apk` 和截图日志。
+- 原 UI 提交 `41adbb8` 的功能回归已通过，但当时的 Actions APK 使用临时签名，不能作为覆盖旧版的安装包。原检查只验证签名有效性，没有验证签名连续性；此缺口已修正。
+- 主分支验证：[GitHub 运行 36218880982](https://github.com/Yuv96/myDV/actions/runs/36218880982)。历史发布证书比对、签名保护用例、新图标资源检查、API 21 播放和 UI 回归均通过；生产构建因缺少原私钥被正确阻止，整体结果为失败，没有新正式 APK，覆盖安装用例及发布尚未执行。
 - 调试工具：[Python 3.10/3.12 用例通过](https://github.com/Yuv96/myDV/actions/runs/36215263328)。
 - 实际账号最终独立读取：已登录，点赞 `0`、关注 `0`，与操作前一致；未向好友发送消息。
 - 本地 agent-webview 调试窗口与控制器已关闭；凭证仅保留于被忽略的 `.local-debug/`。
 - 临时 hosts 删除及 DNS 缓存刷新已完成，已确认 `# myDV-temp-dns-20260926` 条目不存在。
-- 代码已推送至 `debug/douyin-webview-login`，尚未合并到 `main`，未发布新的 Release；GitHub 构建产物已可下载。
+- 代码已合并并推送至 `main`；新的正式 Release 尚未发布，等待原私钥恢复和升级安装验证。
