@@ -156,6 +156,13 @@ callback=package/'MainActivity$25.smali'; body=callback.read_text()
 method=re.search(r'(?ms)^\.method public onResult\(.*?^\.end method',body).group()
 method=method.replace('    return-void', '    iget-object v0, p0, Lcom/dycomment/tv/MainActivity$25;->this$0:Lcom/dycomment/tv/MainActivity;\n    invoke-static {v0}, Lcom/dycomment/tv/PlaybackCoordinator;->trimFeed(Landroid/app/Activity;)V\n    return-void')
 body=re.sub(r'(?ms)^\.method public onResult\(.*?^\.end method',lambda _:method,body); callback.write_text(body)
+# The Java selection state owns visibility. Remove the old permanent/6s binding branch.
+text,n=re.subn(r'(?s)    \.line 990\n.*?    \.line 1006\n', '    .line 1006\n', text); assert n==1
+text,n=re.subn(r'(?ms)^\.method private toggleInfo\(\)V\n.*?^\.end method', '''.method private toggleInfo()V
+    .locals 0
+    invoke-static {p0}, Lcom/dycomment/tv/PlaybackCoordinator;->reconcileMetadata(Landroid/app/Activity;)V
+    return-void
+.end method''', text); assert n==1
 main.write_text(text)
 # Avoid offering upstream APKs with a different package/signature as updates.
 updater=package/'UpdateHelper.smali'
@@ -185,14 +192,25 @@ ET.register_namespace('android','http://schemas.android.com/apk/res/android')
 a='{http://schemas.android.com/apk/res/android}'
 layout=decoded/'res/layout/activity_main.xml'; tree=ET.parse(layout)
 card=next(e for e in tree.iter() if e.get(a+'id')=='@id/infoOverlay')
+card.tag='com.dycomment.tv.VideoInfoLayout'
 row=card[0]; column=row[1]; author=column[0]; stats=card[1]
 card.remove(stats); column.remove(author)
-header=ET.Element('LinearLayout',{a+'orientation':'horizontal',a+'gravity':'center_vertical',a+'layout_width':'match_parent',a+'layout_height':'wrap_content'})
+header=ET.Element('LinearLayout',{a+'orientation':'horizontal',a+'gravity':'center_vertical',a+'layout_width':'wrap_content',a+'layout_height':'wrap_content'})
 author.set(a+'layout_width','wrap_content'); author.set(a+'maxWidth','180dp'); author.set(a+'maxLines','1'); author.set(a+'ellipsize','end')
 for key in ['background','paddingTop','paddingBottom','paddingStart','paddingEnd','layout_marginTop']:
     stats.attrib.pop(a+key,None)
-stats.set(a+'layout_marginStart','12dp'); stats.set(a+'layout_width','0dp'); stats.set(a+'layout_weight','1'); stats.set(a+'textSize','12sp')
+stats.set(a+'layout_marginStart','12dp'); stats.set(a+'layout_width','wrap_content'); stats.set(a+'textSize','12sp')
+stats.set(a+'maxLines','1'); stats.set(a+'ellipsize','end')
 header.extend([author,stats]); column.insert(0,header)
+for element in [card,row,column,column[1]]:
+    element.set(a+'layout_width','wrap_content')
+    element.attrib.pop(a+'layout_weight',None)
+card.set(a+'layout_gravity','bottom|start')
+card.set(a+'visibility','gone')
+clock=next(e for e in tree.iter() if e.get(a+'id')=='@id/tvClock')
+clock.set(a+'layout_gravity','start|top')
+clock.set(a+'layout_marginStart','16dp')
+clock.attrib.pop(a+'layout_marginEnd',None)
 for key in ['paddingBottom','paddingStart','paddingEnd']: card.attrib.pop(a+key,None)
 card.set(a+'padding','0dp'); card.set(a+'layout_marginStart','18dp'); card.set(a+'layout_marginEnd','18dp'); card.set(a+'layout_marginBottom','48dp')
 column.set(a+'padding','12dp'); column.set(a+'background','@drawable/android5_video_card')
@@ -211,6 +229,7 @@ config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9',
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
+shutil.copy(ROOT/'DOUYIN-IM-LICENSE.txt',assets/'DOUYIN-IM-LICENSE.txt')
 shutil.copy(ROOT/'README.md',assets/'ANDROID5-SOURCES.md')
 if SELF_TEST:
     for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'baseline'),('baseline',360,640,'portrait')]:

@@ -147,8 +147,67 @@ public final class InteractionSelfTestActivity extends Activity {
             require(
                     card.getInt("aweType") == 800
                             && card.getString("itemId").equals("123")
+                            && card.has("content_name")
+                            && card.getJSONObject("content_thumb").has("url_list")
+                            && !card.has("name")
                             && !card.has("text"),
                     "share is video card only");
+            Wire.Out acknowledged = new Wire.Out().number(1, 123).number(3, 0).text(4, "client");
+            require(
+                    QuickShareApi.shareResult(new Wire(acknowledged.done()), "client")
+                            .equals("视频已提交给好友"),
+                    "acknowledged share");
+            require(
+                    QuickShareApi.shareResult(
+                                    new Wire(
+                                            new Wire.Out()
+                                                    .number(1, 123)
+                                                    .number(3, 0)
+                                                    .number(5, 10502)
+                                                    .done()),
+                                    "client")
+                            .contains("等待平台审核"),
+                    "only known pending audit is reported as pending");
+            for (int check : new int[] {8610, 99999}) {
+                boolean denied = false;
+                try {
+                    QuickShareApi.shareResult(
+                            new Wire(
+                                    new Wire.Out()
+                                            .number(1, 123)
+                                            .number(3, 0)
+                                            .number(5, check)
+                                            .done()),
+                            "client");
+                } catch (Exception expected) {
+                    denied = true;
+                }
+                require(denied, "rejection or unknown audit must not be reported as success");
+            }
+            boolean mismatch = false;
+            try {
+                QuickShareApi.shareResult(new Wire(acknowledged.done()), "other-client");
+            } catch (Exception expected) {
+                mismatch = true;
+            }
+            require(mismatch, "share acknowledgement belongs to this send");
+            boolean nestedRejected = false;
+            try {
+                QuickShareApi.shareResult(
+                        new Wire(
+                                new Wire.Out()
+                                        .number(1, 123)
+                                        .number(3, 0)
+                                        .number(5, 8101)
+                                        .text(6, "{\"status_code\":8610}")
+                                        .done()),
+                        "client");
+            } catch (Exception expected) {
+                nestedRejected = true;
+            }
+            require(nestedRejected, "nested audit overrides outer acceptance");
+            verifyAdaptiveCard();
+            verifyInfoCardLifecycle();
             Wire parsed = new Wire(new Wire.Out().number(1, Long.MAX_VALUE).text(2, "你好").done());
             require(
                     parsed.number(1, 0) == Long.MAX_VALUE && parsed.text(2).equals("你好"),
@@ -245,5 +304,79 @@ public final class InteractionSelfTestActivity extends Activity {
             result.setText("FAIL " + e.getMessage());
             Log.e("Android5InteractionTest", "FAIL " + e.getMessage());
         }
+    }
+
+    private void verifyAdaptiveCard() {
+        android.view.View root =
+                getLayoutInflater()
+                        .inflate(
+                                getResources()
+                                        .getIdentifier("activity_main", "layout", getPackageName()),
+                                null);
+        TextView author =
+                root.findViewById(getResources().getIdentifier("tvAuthor", "id", getPackageName()));
+        TextView title =
+                root.findViewById(getResources().getIdentifier("tvTitle", "id", getPackageName()));
+        TextView stats =
+                root.findViewById(getResources().getIdentifier("tvStats", "id", getPackageName()));
+        android.view.View overlay =
+                root.findViewById(
+                        getResources().getIdentifier("infoOverlay", "id", getPackageName()));
+        overlay.setVisibility(android.view.View.VISIBLE);
+        author.setText("作者");
+        stats.setText("赞 1 · 评 2");
+        title.setText("短标题");
+        measureCard(root, 1280);
+        int compact = overlay.getMeasuredWidth();
+        require(compact < ModernMenuHelper.dp(this, 600), "short card wraps content");
+        StringBuilder longText = new StringBuilder();
+        for (int i = 0; i < 80; i++) longText.append("长标题和标签");
+        title.setText(longText);
+        author.setText(longText);
+        measureCard(root, 1280);
+        require(
+                overlay.getMeasuredWidth() > compact
+                        && overlay.getMeasuredWidth() <= ModernMenuHelper.dp(this, 720),
+                "long card grows only to the TV ceiling");
+        measureCard(root, 360);
+        require(
+                overlay.getMeasuredWidth() <= ModernMenuHelper.dp(this, 324),
+                "narrow card stays inside side margins");
+        title.setText("短标题");
+        author.setText("作者");
+        measureCard(root, 1280);
+        require(overlay.getMeasuredWidth() == compact, "next short video shrinks the card again");
+    }
+
+    private void verifyInfoCardLifecycle() {
+        InfoCardState info = new InfoCardState();
+        require(!info.visible(100), "no metadata before playback");
+        info.ready(100);
+        require(info.visible(3099) && !info.visible(3100), "exact three-second window");
+        info.ready(5000);
+        require(!info.visible(5000), "loop or surface return never reopens metadata");
+        info.menu(true);
+        require(info.visible(20000), "menu owns temporary visibility without a timeout");
+        info.menu(false);
+        require(!info.visible(20000), "closing menu hides immediately");
+        info.selected();
+        info.ready(30000);
+        require(info.visible(30000), "switch away and back gives a new window");
+        info.menu(true);
+        info.menu(false);
+        require(!info.visible(30001), "closing menu consumes remaining initial time");
+        info.ready(30002);
+        require(!info.visible(30002), "late ready event cannot resurrect a closed card");
+        info.selected();
+        require(!info.visible(30003), "switch cancels previous menu appearance");
+    }
+
+    private void measureCard(android.view.View root, int widthDp) {
+        root.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(
+                        ModernMenuHelper.dp(this, widthDp), android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(
+                        ModernMenuHelper.dp(this, 720), android.view.View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, root.getMeasuredWidth(), root.getMeasuredHeight());
     }
 }

@@ -129,7 +129,7 @@ public final class SwitchingSelfTestActivity extends Activity
                         }
                         if (stage == 0
                                 && outputs > 0
-                                && player.getCurrentPosition() > 2500
+                                && player.getCurrentPosition() > 800
                                 && largeRequests.get() > 0) {
                             if (((View) field("infoOverlay")).getVisibility() != View.VISIBLE)
                                 throw new Exception("metadata not committed on video output");
@@ -293,6 +293,29 @@ public final class SwitchingSelfTestActivity extends Activity
                                 feed.startActivity(
                                         new Intent(feed, SurfaceCoverTestActivity.class));
                             } else {
+                                View info = (View) field("infoOverlay");
+                                if (info.getVisibility() == View.VISIBLE)
+                                    throw new Exception(
+                                            "metadata survived the three-second window");
+                                PlaybackCoordinator.ready(feed);
+                                if (info.getVisibility() == View.VISIBLE)
+                                    throw new Exception("surface return reopened metadata");
+                                key(KeyEvent.KEYCODE_MENU);
+                                if (info.getVisibility() != View.VISIBLE)
+                                    throw new Exception("menu failed to recall metadata");
+                                key(KeyEvent.KEYCODE_BACK);
+                                if (info.getVisibility() == View.VISIBLE)
+                                    throw new Exception(
+                                            "menu exit did not hide metadata immediately");
+                                android.widget.FrameLayout.LayoutParams clockParams =
+                                        (android.widget.FrameLayout.LayoutParams)
+                                                ((View) field("tvClock")).getLayoutParams();
+                                if ((clockParams.gravity
+                                                & android.view.Gravity
+                                                        .RELATIVE_HORIZONTAL_GRAVITY_MASK)
+                                        != android.view.Gravity.START)
+                                    throw new Exception("clock is not at the left/start edge");
+                                Log.i("Android5SwitchTest", "METADATA_TIMER_MENU_AND_CLOCK_OK");
                                 Log.i(
                                         "Android5SwitchTest",
                                         "PASS API21_REAL_FEED_OVERSIZE_STALL_RAPID_RETURN_TIMEOUT_STALE_CALLBACKS_SURFACE_RETURN_CARD"

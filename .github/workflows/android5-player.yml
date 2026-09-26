@@ -1,13 +1,16 @@
 name: 抖音抬头版 · Android 5.0 build and test
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths: ['android5/**', '.github/workflows/android5-player.yml']
   push:
     branches: [main]
     paths: ['android5/**', '.github/workflows/android5-player.yml']
 permissions:
   contents: read
 concurrency:
-  group: android5-player
+  group: android5-player-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build-test:

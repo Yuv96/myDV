@@ -82,6 +82,7 @@ public final class ModernMenuHelper {
         Panel p = new Panel(a, title, labels, large, keepOpen, selected, cancel, menu);
         ((ViewGroup) a.getWindow().getDecorView()).addView(p, new ViewGroup.LayoutParams(-1, -1));
         panels.add(new WeakReference<>(p));
+        if (large) PlaybackCoordinator.metadataMenu(a, true);
         if (p.rows.length > 0) p.rows[0].requestFocus();
         return p;
     }
@@ -112,6 +113,7 @@ public final class ModernMenuHelper {
         final Runnable menu;
         final View previousFocus;
         boolean closed;
+        final boolean recallsMetadata;
 
         Panel(
                 Activity a,
@@ -124,6 +126,7 @@ public final class ModernMenuHelper {
                 Runnable menu) {
             super(a);
             this.cancel = cancel;
+            this.recallsMetadata = large;
             this.menu = menu;
             setId(
                     a.getResources()
@@ -205,6 +208,7 @@ public final class ModernMenuHelper {
         public void close(boolean notify) {
             if (closed) return;
             closed = true;
+            if (recallsMetadata) PlaybackCoordinator.metadataMenu((Activity) getContext(), false);
             if (getParent() instanceof ViewGroup) ((ViewGroup) getParent()).removeView(this);
             if (previousFocus != null && previousFocus.isAttachedToWindow())
                 previousFocus.requestFocus();

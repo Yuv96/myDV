@@ -476,7 +476,7 @@ public final class InteractionController {
     }
 
     void displaySettings() {
-        String[] labels = {"资料卡显示", "时间显示", "菜单暂停", "自动连播", "过滤竖屏"};
+        String[] labels = {"资料卡：播放后显示 3 秒", "时间显示", "菜单暂停", "自动连播", "过滤竖屏"};
         ModernMenuHelper.showMenu(
                 activity,
                 "界面与偏好",
@@ -484,7 +484,8 @@ public final class InteractionController {
                 index -> {
                     showing(false);
                     if (index == 0) {
-                        invoke("showOverlayModePicker");
+                        toast("每次切入视频显示 3 秒；菜单键临时查看，关闭菜单即隐藏");
+                        if (resumePlayback) invoke("resumeFromMenu");
                         return;
                     }
                     String[] fields = {
