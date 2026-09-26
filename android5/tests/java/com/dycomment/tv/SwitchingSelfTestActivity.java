@@ -101,6 +101,8 @@ public final class SwitchingSelfTestActivity extends Activity
         return InteractionController.field(feed, name);
     }
 
+    private int metadataEpoch = -1;
+
     private void key(int key) {
         feed.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, key));
         feed.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, key));
@@ -129,10 +131,10 @@ public final class SwitchingSelfTestActivity extends Activity
                         }
                         if (stage == 0
                                 && outputs > 0
-                                && player.getCurrentPosition() > 2500
+                                && player.getCurrentPosition() > 800
                                 && largeRequests.get() > 0) {
-                            if (((View) field("infoOverlay")).getVisibility() != View.VISIBLE)
-                                throw new Exception("metadata not committed on video output");
+                            if (metadataEpoch != PlaybackCoordinator.token(feed))
+                                throw new Exception("first-frame metadata was not observed");
                             heapBefore = android.os.Debug.getNativeHeapAllocatedSize();
                             staleToken = PlaybackCoordinator.token(feed);
                             Constructor<?> ctor =
@@ -185,8 +187,9 @@ public final class SwitchingSelfTestActivity extends Activity
                         } else if (stage == 2 && outputs > 0 && player.getCurrentPosition() > 800) {
                             if ((Integer) field("currentIndex") != 0)
                                 throw new Exception("returned to wrong video");
-                            if (((View) field("infoOverlay")).getVisibility() != View.VISIBLE)
-                                throw new Exception("returned metadata missing");
+                            if (metadataEpoch != PlaybackCoordinator.token(feed))
+                                throw new Exception(
+                                        "returned first-frame metadata was not observed");
                             Log.i(
                                     "Android5SwitchTest",
                                     "RAPID_ROUNDTRIP_RECOVERED cycles=" + cycles);
@@ -293,6 +296,29 @@ public final class SwitchingSelfTestActivity extends Activity
                                 feed.startActivity(
                                         new Intent(feed, SurfaceCoverTestActivity.class));
                             } else {
+                                View info = (View) field("infoOverlay");
+                                if (info.getVisibility() == View.VISIBLE)
+                                    throw new Exception(
+                                            "metadata survived the three-second window");
+                                PlaybackCoordinator.ready(feed);
+                                if (info.getVisibility() == View.VISIBLE)
+                                    throw new Exception("surface return reopened metadata");
+                                key(KeyEvent.KEYCODE_MENU);
+                                if (info.getVisibility() != View.VISIBLE)
+                                    throw new Exception("menu failed to recall metadata");
+                                key(KeyEvent.KEYCODE_BACK);
+                                if (info.getVisibility() == View.VISIBLE)
+                                    throw new Exception(
+                                            "menu exit did not hide metadata immediately");
+                                android.widget.FrameLayout.LayoutParams clockParams =
+                                        (android.widget.FrameLayout.LayoutParams)
+                                                ((View) field("tvClock")).getLayoutParams();
+                                if ((clockParams.gravity
+                                                & android.view.Gravity
+                                                        .RELATIVE_HORIZONTAL_GRAVITY_MASK)
+                                        != android.view.Gravity.START)
+                                    throw new Exception("clock is not at the left/start edge");
+                                Log.i("Android5SwitchTest", "METADATA_TIMER_MENU_AND_CLOCK_OK");
                                 Log.i(
                                         "Android5SwitchTest",
                                         "PASS API21_REAL_FEED_OVERSIZE_STALL_RAPID_RETURN_TIMEOUT_STALE_CALLBACKS_SURFACE_RETURN_CARD"
@@ -416,7 +442,20 @@ public final class SwitchingSelfTestActivity extends Activity
             player = (PlayerView) field("videoView");
             player.setOnInfoListener(
                     (p, w, e) -> {
-                        if (w == 3) outputs++;
+                        if (w == 3) {
+                            int selection = PlaybackCoordinator.token(a);
+                            if (selection != metadataEpoch) {
+                                try {
+                                    if (((View) field("infoOverlay")).getVisibility()
+                                            != View.VISIBLE)
+                                        throw new Exception("first-frame metadata missing");
+                                    metadataEpoch = selection;
+                                } catch (Exception failure) {
+                                    fail(failure.getMessage());
+                                }
+                            }
+                            outputs++;
+                        }
                         return false;
                     });
         } catch (Exception e) {

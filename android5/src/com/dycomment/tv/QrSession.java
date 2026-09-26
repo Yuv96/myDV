@@ -36,6 +36,11 @@ final class QrSession implements AutoCloseable {
         c.setInstanceFollowRedirects(false);
         c.setRequestProperty("User-Agent", SocialApi.UA);
         c.setRequestProperty("Referer", "https://www.douyin.com/");
+        if (url.getHost().equals("login.douyin.com") && url.getPath().startsWith("/passport/")) {
+            String csrf = cookieValue("passport_csrf_token");
+            if (csrf.isEmpty()) csrf = cookieValue("passport_csrf_token_default");
+            if (!csrf.isEmpty()) c.setRequestProperty("x-tt-passport-csrf-token", csrf);
+        }
         for (Map.Entry<String, List<String>> e :
                 jar.get(url.toURI(), Collections.<String, List<String>>emptyMap()).entrySet())
             for (String value : e.getValue()) c.addRequestProperty(e.getKey(), value);
@@ -52,6 +57,18 @@ final class QrSession implements AutoCloseable {
             }
             int status = c.getResponseCode();
             jar.put(url.toURI(), c.getHeaderFields());
+            // Passport can rotate msToken in a response header, without Set-Cookie.
+            if (url.getHost().equals("login.douyin.com")) {
+                String ms = c.getHeaderField("x-ms-token");
+                if (ms != null && ms.matches("[A-Za-z0-9_+=/.-]{1,4096}")) {
+                    HttpCookie rotated = new HttpCookie("msToken", ms);
+                    rotated.setDomain(".douyin.com");
+                    rotated.setPath("/");
+                    rotated.setSecure(true);
+                    rotated.setVersion(0);
+                    jar.getCookieStore().add(url.toURI(), rotated);
+                }
+            }
             if (status >= 300 && status < 400) {
                 String location = c.getHeaderField("Location");
                 if (location == null) throw new IOException("登录跳转缺少地址");
@@ -99,6 +116,9 @@ final class QrSession implements AutoCloseable {
                         "https://www.douyin.com",
                         "need_logo",
                         "false");
+        if (body != null && body.containsKey("token")) query.put("token", body.get("token"));
+        String ms = cookieValue("msToken");
+        if (!ms.isEmpty()) query.put("msToken", ms);
         JSONObject result =
                 new JSONObject(
                         new String(
@@ -114,6 +134,12 @@ final class QrSession implements AutoCloseable {
                             : "抖音未签发登录凭证（" + code + "），可能需要在抖音完成验证");
         }
         return data;
+    }
+
+    private String cookieValue(String name) throws Exception {
+        for (HttpCookie cookie : jar.getCookieStore().get(new URI(ORIGIN + "/")))
+            if (cookie.getName().equals(name) && !cookie.hasExpired()) return cookie.getValue();
+        return "";
     }
 
     String create() throws Exception {

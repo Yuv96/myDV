@@ -18,6 +18,43 @@ public final class PlaybackCoordinator {
     private int epoch;
     private boolean waiting, failed;
     private Runnable deadline;
+    private final InfoCardState info = new InfoCardState();
+    private final Runnable hideInfo = () -> renderMetadata();
+
+    private void cancelLegacyInfoTimer() {
+        try {
+            Handler handler = (Handler) InteractionController.field(activity, "handler");
+            handler.removeCallbacks(
+                    (Runnable) InteractionController.field(activity, "hideOverlayRunnable"));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void renderMetadata() {
+        cancelLegacyInfoTimer();
+        main.removeCallbacks(hideInfo);
+        long now = android.os.SystemClock.elapsedRealtime();
+        try {
+            View overlay = (View) InteractionController.field(activity, "infoOverlay");
+            boolean visible = !waiting && !failed && info.visible(now);
+            overlay.clearAnimation();
+            overlay.setVisibility(visible ? View.VISIBLE : View.GONE);
+            InteractionController.field(activity, "isInfoVisible", visible);
+        } catch (Exception ignored) {
+        }
+        if (info.remaining(now) > 0) main.postDelayed(hideInfo, info.remaining(now));
+    }
+
+    public static void reconcileMetadata(Activity a) {
+        get(a).renderMetadata();
+    }
+
+    public static void metadataMenu(Activity a, boolean open) {
+        if (host(a) == null) return;
+        PlaybackCoordinator c = get(a);
+        c.info.menu(open);
+        c.renderMetadata();
+    }
 
     private PlaybackCoordinator(Activity a) {
         activity = a;
@@ -113,6 +150,12 @@ public final class PlaybackCoordinator {
         PlaybackCoordinator c = get(a);
         c.epoch++;
         c.failed = false;
+        c.info.selected();
+        if (ModernMenuHelper.recallsMetadata(a)) c.info.menu(true);
+        VideoSocialState.selected(a);
+        c.main.removeCallbacks(c.hideInfo);
+        c.cancelLegacyInfoTimer();
+        c.hideMetadata();
         if (c.deadline != null) c.main.removeCallbacks(c.deadline);
         try {
             c.player().stopPlayback();
@@ -136,7 +179,10 @@ public final class PlaybackCoordinator {
 
     /** Called after legacy metadata binding, before any asynchronous video request. */
     public static void bound(Activity a) {
-        if (get(a).waiting) get(a).hideMetadata();
+        PlaybackCoordinator c = get(a);
+        if (!c.waiting) c.info.ready(android.os.SystemClock.elapsedRealtime());
+        c.renderMetadata();
+        if (!c.waiting) VideoSocialState.ready(a);
     }
 
     public static boolean canHideLoading(Activity a) {
@@ -163,18 +209,11 @@ public final class PlaybackCoordinator {
         if (c.deadline != null) c.main.removeCallbacks(c.deadline);
         try {
             c.call("hideLoading");
-            String mode = InteractionController.text(a, "overlayMode");
-            View overlay = (View) InteractionController.field(a, "infoOverlay");
-            boolean visible = "permanent".equals(mode) || "6s".equals(mode);
-            overlay.clearAnimation();
-            overlay.setVisibility(visible ? View.VISIBLE : View.GONE);
-            InteractionController.field(a, "isInfoVisible", visible);
-            Handler handler = (Handler) InteractionController.field(a, "handler");
-            Runnable hide = (Runnable) InteractionController.field(a, "hideOverlayRunnable");
-            handler.removeCallbacks(hide);
-            if ("6s".equals(mode)) handler.postDelayed(hide, 6000);
         } catch (Exception ignored) {
         }
+        c.info.ready(android.os.SystemClock.elapsedRealtime());
+        c.renderMetadata();
+        VideoSocialState.ready(a);
     }
 
     public static boolean error(Activity a) {

@@ -1,5 +1,7 @@
 package com.dycomment.tv;
 
+import android.content.Context;
+
 import org.json.*;
 
 import java.io.*;
@@ -60,7 +62,8 @@ final class QuickShareApi {
         return p;
     }
 
-    static Wire request(int cmd, int inbox, String path, byte[] body, String uid, String cookie)
+    static Wire request(
+            int cmd, int inbox, String path, byte[] body, String deviceId, String cookie)
             throws Exception {
         Wire.Out o =
                 new Wire.Out()
@@ -72,7 +75,7 @@ final class QuickShareApi {
                         .number(6, inbox)
                         .text(7, "eb11b84dd0eb26ae22321b53426d3f976b920862")
                         .bytes(8, new Wire.Out().bytes(cmd, body).done())
-                        .text(9, uid)
+                        .text(9, deviceId)
                         .text(11, "mac")
                         .text(14, "1.2.1")
                         .number(18, 1)
@@ -91,9 +94,9 @@ final class QuickShareApi {
                                 "version_code",
                                 "1.2.1",
                                 "device_id",
-                                uid,
+                                deviceId,
                                 "did",
-                                uid,
+                                deviceId,
                                 "iid",
                                 "0"));
         HttpURLConnection c =
@@ -158,17 +161,32 @@ final class QuickShareApi {
         JSONObject card =
                 new JSONObject()
                         .put("aweType", 800)
+                        .put("awemeType", 0)
                         .put("itemId", id)
                         .put("content_title", video.optString("desc", ""))
                         .put("uid", author.optString("uid", ""))
                         .put("secUID", author.optString("sec_uid", ""))
-                        .put("name", author.optString("nickname", ""));
-        if (media.optJSONObject("cover") != null)
-            card.put("cover_url", media.getJSONObject("cover"));
+                        .put("content_name", author.optString("nickname", ""));
+        // Desktop video-card schema, checked against zhinjs/douyin-im (see docs).
+        JSONObject cover = media.optJSONObject("cover");
+        if (cover == null) cover = new JSONObject().put("uri", "").put("url_list", new JSONArray());
+        card.put("cover_url", cover)
+                .put("content_thumb", cover)
+                .put("cover_height", 0)
+                .put("cover_width", 0)
+                .put("share_with_timestamp", 0)
+                .put(
+                        "share_id",
+                        author.optString("uid", "") + "_" + System.currentTimeMillis() + "_" + id)
+                .put("ai_ext", "{}")
+                .put("share_info", new JSONArray())
+                .put("anchor_info", new JSONObject())
+                .put("poi_track_params", new JSONObject());
         return card;
     }
 
-    static String share(String id, String friend, String cookie) throws Exception {
+    static String share(Context context, String id, String friend, String cookie) throws Exception {
+        final String deviceId = DeviceIdentity.fallbackDeviceId(context);
         JSONObject self =
                 SocialApi.request(
                                 "/aweme/v1/web/user/profile/self/",
@@ -204,7 +222,7 @@ final class QuickShareApi {
                                 .number(2, Long.parseLong(friend))
                                 .bytes(11, biz)
                                 .done(),
-                        uid,
+                        deviceId,
                         cookie);
         if (created.number(5, 0) != 0 || created.number(2, 0) != 0) throw new Exception("无法建立好友会话");
         Wire conv = created.child(1);
@@ -240,11 +258,31 @@ final class QuickShareApi {
                         (int) conv.number(9, 0),
                         "/v1/message/send",
                         message.done(),
-                        uid,
+                        deviceId,
                         cookie);
-        if (sent.number(3, -1) != 0 || sent.number(1, 0) <= 0)
+        return shareResult(sent, client);
+    }
+
+    static String shareResult(Wire sent, String client) throws Exception {
+        String echoed = sent.text(4);
+        if (sent.number(3, -1) != 0
+                || sent.number(1, 0) <= 0
+                || (!echoed.isEmpty() && !echoed.equals(client)))
             throw new Exception("分享未确认；请先在抖音检查，避免重复发送");
         long check = sent.number(5, 0);
-        return check == 0 || check == 8101 ? "视频已提交给好友" : "视频已提交，等待平台审核";
+        // check_message can carry a newer decision than check_code.
+        String message = sent.text(6);
+        if (!message.isEmpty()) {
+            try {
+                long nested = new JSONObject(message).optLong("status_code", 0);
+                if (nested > 0) check = nested;
+            } catch (JSONException ignored) {
+                // Unstructured server text must not change a confirmed numeric decision.
+            }
+        }
+        if (check == 0 || check == 8101) return "视频已提交给好友";
+        if (check == 10502) return "视频已提交，等待平台审核";
+        if (check == 8610) throw new Exception("平台未通过内容检查，视频未送达");
+        throw new Exception("平台返回分享状态 " + check + "；请先在抖音检查，避免重复发送");
     }
 }

@@ -53,6 +53,7 @@ public final class InteractionController {
         c.handler.removeCallbacks(c.unreadTick);
         c.handler.post(c.unreadTick);
         CredentialHealth.attach(a);
+        VideoSocialState.ready(a);
     }
 
     public static void paused(Activity a) {
@@ -75,6 +76,7 @@ public final class InteractionController {
         c.state = null;
         ModernMenuHelper.dismissCurrentMenu(a);
         PlaybackCoordinator.destroy(a);
+        VideoSocialState.destroy(a);
         LiveChatController.destroy(a);
         CredentialHealth.detach(a);
         a.getWindow().getDecorView().setTag(TAG, null);
@@ -242,13 +244,13 @@ public final class InteractionController {
                 ModernMenuHelper.show(
                         activity,
                         "与作者互动",
-                        new String[] {"喜欢", "关注", "收藏", "主页", "分享"},
+                        new String[] {"点赞 · 读取中", "关注 · 读取中", "收藏 · 读取中", "主页", "分享"},
                         true,
                         true,
                         this::select,
                         () -> close(true),
                         this::comments);
-        loadState();
+        VideoSocialState.menu(activity, false);
     }
 
     void comments() {
@@ -266,45 +268,27 @@ public final class InteractionController {
     }
 
     void loadState() {
-        if (!SocialApi.personalCookie() || stateLoading) return;
-        stateLoading = true;
-        final int token = generation;
-        final String video = id, author = secUid, cookie = session;
-        if (!SocialApi.submit(
-                () -> {
-                    try {
-                        final SocialApi.State result = SocialApi.state(video, author, cookie);
-                        handler.post(
-                                () -> {
-                                    if (active(token, cookie)) {
-                                        stateLoading = false;
-                                        state = result;
-                                        labels();
-                                    }
-                                });
-                    } catch (Exception e) {
-                        handler.post(
-                                () -> {
-                                    if (active(token, cookie)) {
-                                        stateLoading = false;
-                                        toast("互动状态读取失败，点击选项可重试");
-                                    }
-                                });
-                    }
-                })) {
-            stateLoading = false;
-            toast("请求较多，请稍后重试");
-        }
+        if (!stateLoading) VideoSocialState.menu(activity, true);
     }
 
     void labels() {
-        if (panel == null || panel.closed || state == null) return;
-        panel.rows[0].setText(state.liked == 1 ? "已喜欢" : "喜欢");
-        panel.rows[1].setText(
-                state.followed == 1 || state.followed == 2
-                        ? "已关注"
-                        : state.followed == 4 ? "关注待确认" : "关注");
-        panel.rows[2].setText(state.collected == 1 ? "已收藏" : "收藏");
+        if (panel == null || panel.closed) return;
+        String[] verbs = {"点赞", "关注", "收藏"};
+        for (int action = 0; action < 3; action++) {
+            int value =
+                    state == null
+                            ? -1
+                            : action == 0
+                                    ? state.liked
+                                    : action == 1 ? state.followed : state.collected;
+            String label =
+                    !SocialApi.personalCookie()
+                            ? verbs[action] + " · 未登录"
+                            : stateLoading
+                                    ? verbs[action] + " · 读取中"
+                                    : VideoSocialState.label(action, value);
+            panel.rows[action].setText(label);
+        }
     }
 
     void select(int action) {
@@ -359,6 +343,11 @@ public final class InteractionController {
         if (!session.equals(SocialApi.cookie())) {
             session = SocialApi.cookie();
             state = null;
+            stateLoading = false;
+        }
+        if (stateLoading) {
+            toast("正在读取互动状态，请稍候再按确定");
+            return;
         }
         if (state == null) {
             toast("正在读取互动状态，请稍候再按确定");
@@ -366,7 +355,9 @@ public final class InteractionController {
             return;
         }
         int current = action == 0 ? state.liked : action == 1 ? state.followed : state.collected;
-        if (current < 0) {
+        if (current < 0
+                || (action != 1 && current != 0 && current != 1)
+                || (action == 1 && current != 0 && current != 1 && current != 2 && current != 4)) {
             toast("暂时无法确认状态，请稍后重试");
             loadState();
             return;
@@ -380,8 +371,10 @@ public final class InteractionController {
             return;
         }
         final boolean enable = current == 0;
+        final boolean readVideo = id.matches("[0-9]+") && !text(item, "isLive").equals("true");
         final String video = id, author = secUid, uid = state.uid, cookie = session;
         final int token = generation;
+        final int selection = PlaybackCoordinator.token(activity);
         busy = true;
         panel.rows[action].setText("处理中...");
         if (!SocialApi.submit(
@@ -390,7 +383,10 @@ public final class InteractionController {
                     String message;
                     try {
                         SocialApi.change(action, enable, video, uid, author, cookie);
-                        result = SocialApi.state(video, author, cookie);
+                        result =
+                                readVideo
+                                        ? SocialApi.state(video, author, cookie)
+                                        : SocialApi.authorState(author, cookie);
                         int now =
                                 action == 0
                                         ? result.liked
@@ -400,7 +396,7 @@ public final class InteractionController {
                         message =
                                 confirmed
                                         ? (action == 0
-                                                ? (enable ? "已喜欢" : "已取消喜欢")
+                                                ? (enable ? "已点赞" : "已取消点赞")
                                                 : action == 1 ? "已关注" : enable ? "已收藏" : "已取消收藏")
                                         : "请求已提交，状态尚未确认";
                     } catch (Exception e) {
@@ -410,8 +406,10 @@ public final class InteractionController {
                     final String notice = message;
                     handler.post(
                             () -> {
+                                VideoSocialState.confirmed(activity, selection, cookie, updated);
                                 if (!active(token, cookie)) return;
                                 busy = false;
+                                stateLoading = false;
                                 if (updated != null) state = updated;
                                 labels();
                                 toast(notice);
@@ -476,7 +474,7 @@ public final class InteractionController {
     }
 
     void displaySettings() {
-        String[] labels = {"资料卡显示", "时间显示", "菜单暂停", "自动连播", "过滤竖屏"};
+        String[] labels = {"资料卡：播放后显示 3 秒", "时间显示", "菜单暂停", "自动连播", "过滤竖屏"};
         ModernMenuHelper.showMenu(
                 activity,
                 "界面与偏好",
@@ -484,7 +482,8 @@ public final class InteractionController {
                 index -> {
                     showing(false);
                     if (index == 0) {
-                        invoke("showOverlayModePicker");
+                        toast("每次切入视频显示 3 秒；菜单键临时查看，关闭菜单即隐藏");
+                        if (resumePlayback) invoke("resumeFromMenu");
                         return;
                     }
                     String[] fields = {

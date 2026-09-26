@@ -156,6 +156,15 @@ callback=package/'MainActivity$25.smali'; body=callback.read_text()
 method=re.search(r'(?ms)^\.method public onResult\(.*?^\.end method',body).group()
 method=method.replace('    return-void', '    iget-object v0, p0, Lcom/dycomment/tv/MainActivity$25;->this$0:Lcom/dycomment/tv/MainActivity;\n    invoke-static {v0}, Lcom/dycomment/tv/PlaybackCoordinator;->trimFeed(Landroid/app/Activity;)V\n    return-void')
 body=re.sub(r'(?ms)^\.method public onResult\(.*?^\.end method',lambda _:method,body); callback.write_text(body)
+# Keep quality selectable in settings, but omit its suffix from the metadata statistics.
+text,n=re.subn(r'(?s)    \.line 986\n.*?    \.line 987\n    :goto_1\n', '    const-string v2, ""\n\n', text); assert n==1
+# The Java selection state owns visibility. Remove the old permanent/6s binding branch.
+text,n=re.subn(r'(?s)    \.line 990\n.*?    \.line 1006\n', '    .line 1006\n', text); assert n==1
+text,n=re.subn(r'(?ms)^\.method private toggleInfo\(\)V\n.*?^\.end method', '''.method private toggleInfo()V
+    .locals 0
+    invoke-static {p0}, Lcom/dycomment/tv/PlaybackCoordinator;->reconcileMetadata(Landroid/app/Activity;)V
+    return-void
+.end method''', text); assert n==1
 main.write_text(text)
 # Avoid offering upstream APKs with a different package/signature as updates.
 updater=package/'UpdateHelper.smali'
@@ -177,7 +186,7 @@ if not SELF_TEST:
     text=re.sub(r'<activity[^>]+android:name="com.dycomment.tv.(?:PlaybackSelfTestActivity|InteractionSelfTestActivity|SwitchingSelfTestActivity|SurfaceCoverTestActivity)"[^>]*/>', '', text)
 manifest.write_text(text)
 ids=decoded/'res/values/ids.xml'
-names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel'] + [f'android5_menu_row_{i}' for i in range(32)]
+names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel','android5_follow_badge'] + [f'android5_menu_row_{i}' for i in range(32)]
 ids.write_text(ids.read_text().replace('</resources>', ''.join(f'<id name="{name}" />\n' for name in names)+'</resources>'))
 # One API-21 translucent material card, with statistics on the author line.
 import xml.etree.ElementTree as ET
@@ -185,17 +194,43 @@ ET.register_namespace('android','http://schemas.android.com/apk/res/android')
 a='{http://schemas.android.com/apk/res/android}'
 layout=decoded/'res/layout/activity_main.xml'; tree=ET.parse(layout)
 card=next(e for e in tree.iter() if e.get(a+'id')=='@id/infoOverlay')
+card.tag='com.dycomment.tv.VideoInfoLayout'
 row=card[0]; column=row[1]; author=column[0]; stats=card[1]
 card.remove(stats); column.remove(author)
-header=ET.Element('LinearLayout',{a+'orientation':'horizontal',a+'gravity':'center_vertical',a+'layout_width':'match_parent',a+'layout_height':'wrap_content'})
+header=ET.Element('LinearLayout',{a+'orientation':'horizontal',a+'gravity':'center_vertical',a+'layout_width':'wrap_content',a+'layout_height':'wrap_content'})
+title=column[0]
+title.set(a+'maxLines','2'); title.set(a+'ellipsize','end')
 author.set(a+'layout_width','wrap_content'); author.set(a+'maxWidth','180dp'); author.set(a+'maxLines','1'); author.set(a+'ellipsize','end')
 for key in ['background','paddingTop','paddingBottom','paddingStart','paddingEnd','layout_marginTop']:
     stats.attrib.pop(a+key,None)
-stats.set(a+'layout_marginStart','12dp'); stats.set(a+'layout_width','0dp'); stats.set(a+'layout_weight','1'); stats.set(a+'textSize','12sp')
+stats.set(a+'layout_marginStart','12dp'); stats.set(a+'layout_width','wrap_content'); stats.set(a+'textSize','12sp')
+stats.set(a+'maxLines','1'); stats.set(a+'ellipsize','end')
 header.extend([author,stats]); column.insert(0,header)
+for element in [card,row,column,column[1]]:
+    element.set(a+'layout_width','wrap_content')
+    element.attrib.pop(a+'layout_weight',None)
+card.set(a+'layout_gravity','bottom|start')
+card.set(a+'visibility','gone')
+clock=next(e for e in tree.iter() if e.get(a+'id')=='@id/tvClock')
+clock.set(a+'layout_gravity','start|top')
+clock.set(a+'layout_marginStart','16dp')
+clock.attrib.pop(a+'layout_marginEnd',None)
 for key in ['paddingBottom','paddingStart','paddingEnd']: card.attrib.pop(a+key,None)
 card.set(a+'padding','0dp'); card.set(a+'layout_marginStart','18dp'); card.set(a+'layout_marginEnd','18dp'); card.set(a+'layout_marginBottom','48dp')
 column.set(a+'padding','12dp'); column.set(a+'background','@drawable/android5_video_card')
+column.set(a+'layout_height','88dp'); column.set(a+'gravity','center_vertical')
+row[0].set(a+'layout_width','88dp'); row[0].set(a+'layout_height','88dp')
+avatar=row[0]; row.remove(avatar)
+avatarFrame=ET.Element('FrameLayout',{a+'layout_width':'88dp',a+'layout_height':'88dp'})
+avatar.set(a+'layout_width','match_parent'); avatar.set(a+'layout_height','match_parent')
+avatarFrame.append(avatar)
+badge=ET.SubElement(avatarFrame,'TextView',{
+    a+'id':'@id/android5_follow_badge',a+'layout_width':'wrap_content',a+'layout_height':'wrap_content',
+    a+'layout_gravity':'bottom|center_horizontal',a+'gravity':'center',a+'maxWidth':'86dp',
+    a+'text':'读取中',a+'textSize':'11sp',a+'textColor':'#ffffffff',a+'maxLines':'1',a+'ellipsize':'end',
+    a+'paddingStart':'7dp',a+'paddingEnd':'7dp',a+'paddingTop':'2dp',a+'paddingBottom':'2dp',
+    a+'background':'@drawable/android5_follow_badge'})
+row.insert(0,avatarFrame)
 column[1].set(a+'textColor','#e6ffffff')
 tree.write(layout,encoding='utf-8',xml_declaration=True)
 (decoded/'res/drawable/android5_video_card.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
@@ -204,6 +239,12 @@ tree.write(layout,encoding='utf-8',xml_declaration=True)
   <gradient android:angle="90" android:startColor="#c0000000" android:endColor="#a0000000" />
   <stroke android:width="1dp" android:color="#30ffffff" />
 </shape>''')
+(decoded/'res/drawable/android5_follow_badge.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <corners android:radius="10dp" />
+  <solid android:color="#ee262626" />
+  <stroke android:width="1dp" android:color="#99ffffff" />
+</shape>''')
 assert not list(package.glob('PlayerView*.smali')), 'before cleanup'
 cleanup(decoded)
 assert not list(package.glob('PlayerView*.smali')), 'after cleanup'
@@ -211,6 +252,7 @@ config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9',
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
+shutil.copy(ROOT/'DOUYIN-IM-LICENSE.txt',assets/'DOUYIN-IM-LICENSE.txt')
 shutil.copy(ROOT/'README.md',assets/'ANDROID5-SOURCES.md')
 if SELF_TEST:
     for profile,width,height,name in [('high',1280,720,'high'),('baseline',640,360,'baseline'),('baseline',360,640,'portrait')]:
