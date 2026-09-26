@@ -8,14 +8,18 @@
 a9a53928e2d288aba0ed134d1c92bf1e8ba29886f22b23578f56cd34ef1d32e6
 ```
 
-## 已排查的密钥存储位置
+## 恢复结果
 
-- 当前仓库的 Actions Secrets、Environment、Variables 及 Actions 缓存均无签名配置。
+2026-09-26，用户在原网页版 Codex 任务中找回 `android5-release.p12`，通过 GitHub 加密 Secrets 页面配置了 `ANDROID5_KEYSTORE_BASE64` 与 `ANDROID5_KEYSTORE_PASSWORD`。原备份保留，临时副本已清理，没有生成新密钥。[GitHub 发布流程 36221610330](https://github.com/Yuv96/myDV/actions/runs/36221610330) 已匹配上述旧版证书，通过 a5.4 → v0.1.1 → v0.1.2 连续覆盖安装及应用数据保留验证，并完成 v0.1.2 测试版发布。发布源码提交为 `1d6d3f4`，发布附件的 `SIGNING_CERTIFICATE.txt` 记录了同一公开证书指纹。
+
+## 恢复前已排查的密钥存储位置
+
+- 当时仓库的 Actions Secrets、Environment、Variables 及 Actions 缓存均无签名配置。
 - 历史工作流只上传 `dist/` 和 `evidence/`，没有上传或缓存 `android5/build/test-only.p12`。
 - Git 历史没有发现曾提交的签名私钥文件；已有发布附件没有密钥。
 - 本地工作区及可读取的常见配置、数据和临时目录尚未找到原密钥。
 
-用户已确认此前是在网页版 Codex 的仓库任务环境中完成发布。下一步应回到当时发布 a5.4 / v0.1.1 的同一个任务，查找原工作区和临时目录里的签名文件；该任务是否仍保留这些未提交文件尚待确认。新任务和 GitHub Actions 产物不能代替对原任务工作区的查找。
+用户确认此前是在网页版 Codex 的仓库任务环境中完成发布，随后回到当时发布 a5.4 / v0.1.1 的同一个任务找回了原文件。新任务和 GitHub Actions 产物不能代替对原任务工作区的查找。
 
 证书、APK、摘要和密码本身都不能替代私钥；不能通过重新生成同名密钥来恢复覆盖安装能力。
 
