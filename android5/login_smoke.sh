@@ -22,8 +22,9 @@ for attempt in $(seq 1 25); do
   if grep -q 'LIVE_PROBE_DONE\|LIVE_PROBE_SCREENSHOT_UNAVAILABLE' evidence/official-login-live.txt; then break; fi
 done
 cat evidence/official-login-live.txt
-screenshot=$(sed -n 's/.*LIVE_SCREENSHOT_PATH=//p' evidence/official-login-live.txt | tr -d '\r' | tail -n 1)
-if [ -n "$screenshot" ]; then adb pull "$screenshot" evidence/official-login-redacted.png; fi
+if grep -q 'LIVE_SCREENSHOT_READY' evidence/official-login-live.txt; then
+  adb exec-out screencap -p > evidence/official-login-redacted.png
+fi
 # Live network/old-engine limitations are recorded, never relabelled as successful login.
 adb shell input keyevent 4
 sleep 1

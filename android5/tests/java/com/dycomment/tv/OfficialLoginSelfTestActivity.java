@@ -1,24 +1,19 @@
 package com.dycomment.tv;
 
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
-import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import org.json.JSONObject;
-import java.io.File;
-import java.io.FileOutputStream;
 
 /** No real account: offline browser isolation plus an optional anonymous official-page probe. */
 public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
     private static final String TAG = "Android5OfficialLoginTest";
     private final Handler test = new Handler(Looper.getMainLooper());
-    private boolean probe, completed;
+    private boolean probe, completed, screenshotSafe;
     private String original = "";
     private static final String OLD = "sessionid=fixture-old-native-account";
 
@@ -155,6 +150,7 @@ public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
     private void observeOfficialPage() {
         if (browser == null) {
             Log.i(TAG, "LIVE_PROBE_UNAVAILABLE official page did not remain open; no QR/login claim");
+            screenshotSafe = true;
             screenshot();
             return;
         }
@@ -163,9 +159,19 @@ public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
                 + "var r=a[i].getBoundingClientRect();if(a[i].src.indexOf('data:image/')===0"
                 + "&&r.width>=100&&r.width<=400&&Math.abs(r.width-r.height)<3)n++;}"
                 + "var style=document.createElement('style');style.textContent='img,canvas,svg{visibility:hidden!important}';document.head.appendChild(style);"
-                + "return {official:location.hostname==='www.douyin.com',qr_candidate_count:n,"
+                + "return {redacted:true,official:location.hostname==='www.douyin.com',qr_candidate_count:n,"
                 + "body_text_present:document.body.innerText.length>40};})()", observation -> {
-            Log.i(TAG, "LIVE_PROBE_OBSERVATION " + observation);
+            try {
+                JSONObject result = new JSONObject(observation);
+                screenshotSafe = result.optBoolean("redacted", false);
+                if (!screenshotSafe) throw new IllegalStateException("redaction not acknowledged");
+                Log.i(TAG, "LIVE_PROBE_OBSERVATION official=" + result.optBoolean("official", false)
+                        + " qr_candidate_count=" + result.optInt("qr_candidate_count", -1)
+                        + " body_text_present=" + result.optBoolean("body_text_present", false));
+            } catch (Exception failure) {
+                Log.e(TAG, "LIVE_PROBE_SCREENSHOT_UNAVAILABLE " + failure.getClass().getName());
+                return;
+            }
             // All artwork is masked before a CI image is written; no QR token/cookies are exported.
             if (browser != null) { browser.stopLoading(); browser.getSettings().setJavaScriptEnabled(false); }
             test.postDelayed(() -> screenshot(), 600);
@@ -174,15 +180,17 @@ public final class OfficialLoginSelfTestActivity extends QrLoginActivity {
 
     private void screenshot() {
         try {
-            View view = getWindow().getDecorView();
-            Bitmap image = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
-            view.draw(new Canvas(image));
-            File file = new File(getExternalFilesDir(null), "official-login-redacted.png");
-            try (FileOutputStream out = new FileOutputStream(file)) { image.compress(Bitmap.CompressFormat.PNG, 100, out); }
-            image.recycle();
-            Log.i(TAG, "LIVE_SCREENSHOT_PATH=" + file.getAbsolutePath());
-            Log.i(TAG, "LIVE_PROBE_DONE anonymous page observation only; login not validated");
-        } catch (Exception failure) { Log.e(TAG, "LIVE_PROBE_SCREENSHOT_UNAVAILABLE"); }
+            // Only this test activity can expose its already-redacted surface. Production stays
+            // FLAG_SECURE. adb captures Chromium's hardware surface instead of software View.draw.
+            if (!probe || !screenshotSafe) throw new IllegalStateException("screenshot requires redacted probe");
+            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+            test.postDelayed(() -> {
+                Log.i(TAG, "LIVE_SCREENSHOT_READY adb-redacted-surface");
+                Log.i(TAG, "LIVE_PROBE_DONE anonymous page observation only; login not validated");
+            }, 400);
+        } catch (Exception failure) {
+            Log.e(TAG, "LIVE_PROBE_SCREENSHOT_UNAVAILABLE " + failure.getClass().getName());
+        }
     }
 
     @Override protected void onDestroy() {

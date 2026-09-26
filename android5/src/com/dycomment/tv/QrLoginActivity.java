@@ -187,6 +187,7 @@ public class QrLoginActivity extends Activity {
         refresh.setEnabled(true);
         verify.setEnabled(true);
         openOfficialPage(browser);
+        main.postDelayed(() -> checkBlankPage(token), 25000);
         main.postDelayed(() -> {
             if (valid(token)) fail("本次登录窗口已超时，请重新打开；现有账号已保留");
         }, 300000);
@@ -194,6 +195,20 @@ public class QrLoginActivity extends Activity {
 
     // A test-only subclass supplies an inert offline page; production always opens this URL.
     void openOfficialPage(RemoteWebView view) { view.loadUrl(OfficialLoginPolicy.HOME); }
+
+    private void checkBlankPage(int token) {
+        if (!valid(token) || browser == null
+                || !OfficialLoginPolicy.navigation(browser.getUrl())) return;
+        // Observe only whether usable content exists; do not infer the cause or export page data.
+        browser.evaluateJavascript("(function(){var a=document.images,n=0;for(var i=0;i<a.length;i++){"
+                + "var r=a[i].getBoundingClientRect();if(a[i].src.indexOf('data:image/')===0"
+                + "&&r.width>=100&&r.width<=400&&Math.abs(r.width-r.height)<3)n++;}"
+                + "var t=document.body?(document.body.innerText||''):'';"
+                + "return n===0&&t.replace(/\\s/g,'').length===0;})()", empty -> {
+            if (valid(token) && "true".equals(empty))
+                status.setText("官网尚未加载出登录内容。请检查网络，或更新系统 WebView 后重新打开；现有账号已保留");
+        });
+    }
 
     private void maybeOpenLogin(int token, int tries) {
         if (!valid(token) || browser == null || loginClicked || loginClickPending || tries >= 12

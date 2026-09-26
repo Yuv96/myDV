@@ -75,14 +75,24 @@ public final class LegacyUiFixture {
     }
 
     private static Object model(String type) throws Exception {
-        java.lang.reflect.Constructor<?> constructor = Class.forName("com.dycomment.tv.DouyinApi$" + type).getDeclaredConstructor();
-        constructor.setAccessible(true);
-        Object value = constructor.newInstance();
+        Class<?> modelClass = Class.forName("com.dycomment.tv.DouyinApi$" + type);
+        Object value;
+        if (type.equals("FeedItem")) {
+            // Same pinned constructor exercised by SwitchingSelfTestActivity.
+            value = modelClass.getConstructor(String.class, String.class, String.class, String.class)
+                    .newInstance("fixture", "fixture video", "fixture author", "fixture-author");
+        } else if (type.equals("HotSearchItem")) {
+            // Verified against the pinned APK's sanitized model source in CI.
+            value = modelClass.getConstructor(String.class, long.class, int.class)
+                    .newInstance("fixture hot search", 12800L, 1);
+        } else if (type.equals("UserItem")) {
+            value = modelClass.getConstructor().newInstance();
+        } else throw new IllegalArgumentException("unsupported fixture model: " + type);
         for (Field field : value.getClass().getDeclaredFields()) {
             if (Modifier.isStatic(field.getModifiers())) continue;
             field.setAccessible(true);
-            if (field.getType() == String.class) field.set(value, "");
-            if (field.getType() == List.class) field.set(value, new ArrayList<>());
+            if (field.getType() == String.class && field.get(value) == null) field.set(value, "");
+            if (field.getType() == List.class && field.get(value) == null) field.set(value, new ArrayList<>());
         }
         return value;
     }
