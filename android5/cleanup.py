@@ -4,10 +4,74 @@ Only this pinned binary is supported. Every method replacement fails closed if
 its signature changes. The readable implementation lives in src/, not smali.
 """
 import pathlib
+import json
+import os
 import re
 import xml.etree.ElementTree as ET
 
 METHOD = re.compile(r'(?ms)^\.method [^\n]+\n.*?^\.end method')
+
+
+def legacy_theme(package):
+    """Only audited app-owned literals and drawing calls; never runtime user text."""
+    labels = {
+        '🔴 直播': '直播', ' 🖼️ ': ' 图集 ', '❤ ': '赞 ', '♥ ': '赞 ',
+        '  加载更多 ▼  ': '加载更多', '🔥 ': '', '← 返回': '返回',
+        '  ⭐ 精选': '精选', '🔄 换一批': '换一批', '🔥 热搜  ': '热搜',
+        '🔴 ': '', '👥 ': '观众 ', '←': '返回', '🔍': '搜索', '✕': '清空',
+        '📭  ': '', '🎬 ': '', '👤 ': '', '🔍  ': '', '❌ ': '加载失败：',
+        '   ❤️ ': '   粉丝 ', '   🔥 ': '   获赞 ', '›': '进入',
+    }
+    owners = ('ProfileActivity', 'FeaturedActivity', 'SearchActivity')
+    drawing = {
+        ('setBackgroundColor', 'I'): ('backgroundColor', 'Landroid/view/View;I'),
+        ('setBackground', 'Landroid/graphics/drawable/Drawable;'):
+            ('background', 'Landroid/view/View;Landroid/graphics/drawable/Drawable;'),
+        ('setTextColor', 'I'): ('textColor', 'Landroid/widget/TextView;I'),
+        ('setOnFocusChangeListener', 'Landroid/view/View$OnFocusChangeListener;'):
+            ('focusListener', 'Landroid/view/View;Landroid/view/View$OnFocusChangeListener;'),
+    }
+    for file in package.glob('*.smali'):
+        if not file.name.startswith(owners):
+            continue
+        body = file.read_text()
+        def label(match):
+            value = json.loads(match.group(2))
+            replacement = labels.get(value, value)
+            if file.name == 'ProfileActivity$ProfileCallbackImpl.smali' and value == '👥 ':
+                replacement = '关注 '
+            return match.group(1) + json.dumps(replacement, ensure_ascii=True)
+        body = re.sub(r'(const-string(?:/jumbo)? [vp]\d+, )("(?:[^"\\]|\\.)*")', label, body)
+        for (method, signature), (target, arguments) in drawing.items():
+            pattern = (r'invoke-virtual(?P<range>/range)? (?P<args>\{[^}]+\}), '
+                       r'Landroid/(?:view|widget)/[\w$]+;->' + method
+                       + r'\(' + re.escape(signature) + r'\)V')
+            body = re.sub(pattern, lambda m: 'invoke-static' + (m.group('range') or '')
+                          + ' ' + m.group('args') + ', Lcom/dycomment/tv/LegacyTheme;->'
+                          + target + '(' + arguments + ')V', body)
+        body = re.sub(r'invoke-virtual(?P<range>/range)? (?P<args>\{[^}]+\}), '
+                      r'Landroid/graphics/drawable/GradientDrawable;->setColor\(I\)V',
+                      lambda m: 'invoke-static' + (m.group('range') or '') + ' ' + m.group('args')
+                      + ', Lcom/dycomment/tv/LegacyTheme;->drawableColor(Landroid/graphics/drawable/GradientDrawable;I)V', body)
+        body = re.sub(r'invoke-virtual(?P<range>/range)? (?P<args>\{[^}]+\}), '
+                      r'Landroid/graphics/drawable/GradientDrawable;->setShape\(I\)V',
+                      lambda m: 'invoke-static' + (m.group('range') or '') + ' ' + m.group('args')
+                      + ', Lcom/dycomment/tv/LegacyTheme;->drawableShape(Landroid/graphics/drawable/GradientDrawable;I)V', body)
+        if file.stem in owners:
+            marker = f'    invoke-direct {{p0}}, Lcom/dycomment/tv/{file.stem};->buildUI()V'
+            assert body.count(marker) == 1, (file.name, 'buildUI hook')
+            body = body.replace(marker, marker + '\n    invoke-static {p0}, Lcom/dycomment/tv/LegacyTheme;->attach(Landroid/app/Activity;)V')
+            if os.environ.get('SELF_TEST') == '1':
+                fixture = '''
+    invoke-static {p0}, Lcom/dycomment/tv/LegacyUiFixture;->show(Landroid/app/Activity;)Z
+    move-result p1
+    if-eqz p1, :android5_normal_legacy_page
+    return-void
+    :android5_normal_legacy_page
+'''
+                hook = '    invoke-static {p0}, Lcom/dycomment/tv/LegacyTheme;->attach(Landroid/app/Activity;)V'
+                body = body.replace(hook, hook + fixture)
+        file.write_text(body)
 
 
 def replace_method(text, name, instructions):
@@ -105,6 +169,8 @@ def apply(decoded):
         for old,new in colors.items():
             text=re.sub(r'(?<![\w-])'+re.escape(literal(old & 0xffffffff))+r'\b',literal(new),text)
         file.write_text(text)
+
+    legacy_theme(package)
 
     manifest = decoded / 'AndroidManifest.xml'
     tree=ET.parse(manifest); android='{http://schemas.android.com/apk/res/android}'
