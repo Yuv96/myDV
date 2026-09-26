@@ -100,6 +100,9 @@ final class LegacyThemeSelfTest {
         });
         java.util.WeakHashMap<View, Boolean> styled = new java.util.WeakHashMap<>();
         LegacyTheme.styleNew(legacyButton, styled);
+        require(legacyButton.getMinimumWidth() == ModernMenuHelper.dp(activity, 72)
+                        && legacyButton.getGravity() == android.view.Gravity.CENTER,
+                "plain-text back controls reserve width and center their label");
         View.OnFocusChangeListener installed = legacyButton.getOnFocusChangeListener();
         LegacyTheme.styleNew(legacyButton, styled);
         require(installed == legacyButton.getOnFocusChangeListener(),
@@ -111,6 +114,19 @@ final class LegacyThemeSelfTest {
                         && legacyButton.getElevation() == 0f
                         && pixel(legacyButton.getBackground(), 32, 32) == UiTheme.BLACK,
                 "external focus listener cannot restore its old gray fill or zoom after blur");
+        TextView animatorButton = new TextView(activity);
+        animatorButton.setFocusable(true);
+        final int[] animatorCalls = {0}, clickCalls = {0};
+        animatorButton.setOnFocusChangeListener((view, focused) -> animatorCalls[0]++);
+        animatorButton.setOnClickListener(view -> clickCalls[0]++);
+        LegacyTheme.setupFocus(animatorButton);
+        animatorButton.getOnFocusChangeListener().onFocusChange(animatorButton, true);
+        animatorButton.getOnFocusChangeListener().onFocusChange(animatorButton, false);
+        animatorButton.performClick();
+        require(animatorCalls[0] == 0 && clickCalls[0] == 1,
+                "replacement skips the old animator while retaining its navigation click");
+        require(pixel(animatorButton.getBackground(), 32, 32) == UiTheme.BLACK,
+                "replacement returns to the theme's black fill on blur");
         android.util.Log.i("Android5InteractionTest", "LEGACY_THEME_GRADIENT_FOCUS_USER_TEXT_OK");
     }
 

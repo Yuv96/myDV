@@ -35,12 +35,23 @@ def legacy_theme(package):
                       for old, new in labels.items()}
     seen_labels = set()
     replacements = 0
+    focus_replacements = 0
     def normalized(literal):
         return re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: '\\u' + m.group(1).lower(), literal)
     for file in package.glob('*.smali'):
         if not file.name.startswith(owners):
             continue
         body = file.read_text()
+        # These two Search controls install an asynchronous animator, not navigation logic.
+        # Drop the color arguments and install only our focus policy; click handlers stay intact.
+        body, focus_count = re.subn(
+            r'invoke-static \{([vp]\d+), [vp]\d+, [vp]\d+\}, '
+            r'Lcom/dycomment/tv/AnimHelper;->setupFocusAnim\(Landroid/view/View;II\)V',
+            lambda m: 'invoke-static {' + m.group(1)
+            + '}, Lcom/dycomment/tv/LegacyTheme;->setupFocus(Landroid/view/View;)V', body)
+        assert focus_count == (2 if file.name == 'SearchActivity.smali' else 0), 'pinned legacy focus animator calls changed'
+        assert 'Lcom/dycomment/tv/AnimHelper;->setupFocusAnim' not in body, 'legacy focus animator remains'
+        focus_replacements += focus_count
         def label(match):
             nonlocal replacements
             literal = normalized(match.group(2))
@@ -85,6 +96,7 @@ def legacy_theme(package):
                 body = body.replace(hook, hook + fixture)
         file.write_text(body)
     assert seen_labels == set(encoded_labels), 'pinned legacy UI labels changed; review the source export'
+    assert focus_replacements == 2, 'expected exactly two legacy focus animator replacements'
     main = package / 'MainActivity.smali'
     body = main.read_text()
     for old, new in [('🔴 ', ''), ('⏩ +5s', '快进 +5s'), ('⏪ -5s', '快退 -5s')]:
@@ -95,7 +107,8 @@ def legacy_theme(package):
         replacements += count
         assert old_literal not in body, 'old MainActivity UI label remains'
     main.write_text(body)
-    print('LEGACY UI: replaced', replacements, 'audited static labels; all drawing hooks installed')
+    print('LEGACY UI: replaced', replacements, 'audited static labels and', focus_replacements,
+          'legacy focus animators; all drawing hooks installed')
 
 
 def replace_method(text, name, instructions):

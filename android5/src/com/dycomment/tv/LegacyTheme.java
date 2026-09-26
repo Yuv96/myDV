@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.view.View;
+import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.EditText;
@@ -53,6 +54,8 @@ public final class LegacyTheme {
                     if ("返回".contentEquals(text.getText()) || "清空".contentEquals(text.getText())) {
                         ViewGroup.LayoutParams params = view.getLayoutParams();
                         int width = ModernMenuHelper.dp(view.getContext(), 72);
+                        text.setMinimumWidth(width);
+                        text.setGravity(Gravity.CENTER);
                         if (params != null && params.width > 0 && params.width < width) {
                             params.width = width;
                             view.setLayoutParams(params);
@@ -62,8 +65,8 @@ public final class LegacyTheme {
                 }
             }
             if (view.isFocusable()) {
-                // AnimHelper installs some listeners outside the patched Activity methods.
-                // The per-view styled guard keeps this final wrapper stable across layouts.
+                // Preserve navigation callbacks while applying our final focus treatment.
+                // The per-view styled guard keeps this wrapper stable across layouts.
                 focusListener(view, view.getOnFocusChangeListener());
                 control(view);
             }
@@ -148,6 +151,14 @@ public final class LegacyTheme {
             target.setElevation(0f);
             control(target);
         });
+    }
+
+    public static void setupFocus(View view) {
+        // Replacement for AnimHelper setup: never start its independent color animator.
+        // Only replace the focus listener; the existing click/navigation action stays intact.
+        view.setFocusable(true);
+        focusListener(view, null);
+        control(view);
     }
 
     static void control(View view) {
