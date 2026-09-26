@@ -6,8 +6,10 @@ adb root
 adb wait-for-device
 adb uninstall com.dycomment.tv.android5 >/dev/null 2>&1 || true
 adb install dist-reference/a5.4.apk > evidence/upgrade-a5.4.txt
-adb install -r dist-reference/v0.1.1.apk > evidence/upgrade-v0.1.1.txt
 adb shell 'printf mydv-upgrade-preserved > /data/data/com.dycomment.tv.android5/upgrade-probe'
+adb install -r dist-reference/v0.1.1.apk > evidence/upgrade-v0.1.1.txt
+marker=$(adb shell cat /data/data/com.dycomment.tv.android5/upgrade-probe | tr -d '\r')
+test "$marker" = 'mydv-upgrade-preserved'
 adb install -r dist/Douyin-TV-0.1.2.apk > evidence/upgrade-v0.1.2.txt
 marker=$(adb shell cat /data/data/com.dycomment.tv.android5/upgrade-probe | tr -d '\r')
 test "$marker" = 'mydv-upgrade-preserved'

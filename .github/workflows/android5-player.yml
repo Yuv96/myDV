@@ -51,6 +51,8 @@ jobs:
           fi
       - name: Verify the actual certificates of published upgrade baselines
         run: python3 android5/signing.py
+      - name: Check release signing fail-closed behavior
+        run: python3 -B -m unittest discover -s android5/tests -p 'test_release_guard.py' -v
       - name: Compile API-21 regression build
         run: SELF_TEST=1 python3 android5/build.py
       - name: Verify manifest and packaged architectures
@@ -135,7 +137,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.1.2 dist/* --target "$GITHUB_SHA" --draft --prerelease \
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          test "$current_main" = "$GITHUB_SHA"
+          if git ls-remote --exit-code --tags origin refs/tags/v0.1.2 >/dev/null; then
+            git fetch origin refs/tags/v0.1.2:refs/tags/v0.1.2
+            test "$(git rev-parse 'v0.1.2^{commit}')" = "$GITHUB_SHA"
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref=refs/tags/v0.1.2 -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          gh release create v0.1.2 dist/* --verify-tag --draft --prerelease \
             --title '抖音抬头版 0.1.2 — 评论区、状态胶囊与 TV 图标' \
             --notes-file docs/releases/v0.1.2.md
           gh release edit v0.1.2 --draft=false

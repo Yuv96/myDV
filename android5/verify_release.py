@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check the shipping APK independently of the regression-only build."""
-import os, pathlib, re, subprocess, zipfile
+import os, pathlib, re, subprocess, sys, zipfile
 from signing import require_release_signer, REFERENCES, certificate
 root=pathlib.Path(__file__).resolve().parent.parent
 apk=root/'dist/Douyin-TV-0.1.2.apk'
@@ -19,6 +19,7 @@ with zipfile.ZipFile(apk) as z:
     assert b'SwitchingSelfTestActivity' not in dex
     assert b'DEFAULT_MS_TOKEN' not in dex
 subprocess.run([tools/'apksigner','verify','--verbose','--min-sdk-version','21',apk],check=True)
+subprocess.run([sys.executable,root/'android5/verify_branding.py',apk],check=True)
 digest=require_release_signer(apk,tools/'apksigner')
 for tag in REFERENCES:
     reference=root/'dist-reference'/(tag+'.apk')
