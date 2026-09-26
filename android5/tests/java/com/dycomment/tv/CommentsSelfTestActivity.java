@@ -45,6 +45,19 @@ public final class CommentsSelfTestActivity extends Activity {
     }
 
     private static final class Fixture implements CommentsPanel.PageSource {
+        private static final String[] TEXTS = {
+            "这个镜头拍得真好，晚霞的颜色也很舒服。",
+            "原来还可以这样，学到了。",
+            "慢慢看完才发现，最打动人的是那些不起眼的小细节。",
+            "配乐和画面刚刚好。",
+            "周末也想出去走走，吹吹风。",
+            "这段看了好几遍，还是觉得很有意思。",
+            "隔着屏幕都能感受到当时的开心。",
+            "谢谢分享，认真生活的样子真的很美。"
+        };
+        private static final String[] NAMES = {
+            "山间清风", "晚风", "小满", "知夏", "白日梦", "向晴", "听海", "慢慢来"
+        };
         volatile boolean current = true;
         volatile int requested = -1, requests;
         final boolean delayed;
@@ -74,9 +87,9 @@ public final class CommentsSelfTestActivity extends Activity {
             // An empty but advancing page must not stop subsequent pages.
             if (cursor != 20) for (int i = cursor; i < cursor + 20; i++) {
                 comments.put(new JSONObject()
-                        .put("text", "评论 " + i + "：这是一条用于真实列表滚动和行回收验证的评论。")
+                        .put("text", TEXTS[i % TEXTS.length])
                         .put("digg_count", i)
-                        .put("user", new JSONObject().put("nickname", "用户 " + i)));
+                        .put("user", new JSONObject().put("nickname", NAMES[i % NAMES.length])));
             }
             return new JSONObject().put("comments", comments)
                     .put("cursor", cursor + 20).put("has_more", cursor < 320 ? 1 : 0);
@@ -110,7 +123,9 @@ public final class CommentsSelfTestActivity extends Activity {
     }
 
     private String rowText(View row) throws Exception {
-        return ((TextView) field(row, "body")).getText().toString();
+        // Likes are unique fixture data, so repeated natural text still identifies the same row.
+        return ((TextView) field(row, "meta")).getText().toString()
+                + "\n" + ((TextView) field(row, "body")).getText().toString();
     }
 
     private void savePopulatedScreenshot() throws Exception {
