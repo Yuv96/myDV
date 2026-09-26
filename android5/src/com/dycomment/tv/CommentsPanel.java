@@ -1,6 +1,11 @@
 package com.dycomment.tv;
 
 import android.app.Activity;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Handler;
 import android.os.Looper;
@@ -184,13 +189,43 @@ final class CommentsPanel extends FrameLayout {
             words.addView(meta);
             words.addView(body);
             addView(words, new LinearLayout.LayoutParams(0, -2, 1));
-            avatar = new ImageView(a);
+            avatar = new CircularAvatar(a);
             avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);
             avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             LinearLayout.LayoutParams picture = new LinearLayout.LayoutParams(
                     ModernMenuHelper.dp(a, 40), ModernMenuHelper.dp(a, 40));
             picture.leftMargin = ModernMenuHelper.dp(a, 14);
             addView(avatar, picture);
+        }
+    }
+
+    /** Mask the whole view, including the placeholder background installed by PreviewImages. */
+    private static final class CircularAvatar extends ImageView {
+        private final Path corners = new Path();
+        private final Paint erase = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        CircularAvatar(Activity a) {
+            super(a);
+            erase.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            corners.reset();
+            corners.setFillType(Path.FillType.EVEN_ODD);
+            corners.addRect(0, 0, w, h, Path.Direction.CW);
+            corners.addCircle(w / 2f, h / 2f, Math.min(w, h) / 2f, Path.Direction.CW);
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            // An isolated layer keeps the mask from erasing the comment row beneath it.
+            // Unlike outline clipping, this also works when API21 screenshots use a software Canvas.
+            int layer = canvas.saveLayer(0, 0, getWidth(), getHeight(), null, Canvas.ALL_SAVE_FLAG);
+            super.draw(canvas);
+            canvas.drawPath(corners, erase);
+            canvas.restoreToCount(layer);
         }
     }
 

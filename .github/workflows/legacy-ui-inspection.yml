@@ -1,0 +1,48 @@
+name: Inspect sanitized legacy UI sources
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/login-and-unified-tv-ui]
+    paths: ['.github/workflows/legacy-ui-inspection.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Decode pinned upstream and export only sanitized UI source
+        run: |
+          curl --fail --location --silent --show-error https://github.com/mytv-android/myDV/releases/download/V1.1.9/myDV.Lite_1.1.9.apk -o original.apk
+          echo 'c01f3b93a7c0b97e481f9f9706a1ff9bc91c3431000be13695b1ca9ffcad69fa  original.apk' | sha256sum -c -
+          curl --fail --location --silent --show-error https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar -o apktool.jar
+          echo 'dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  apktool.jar' | sha256sum -c -
+          java -jar apktool.jar d -f original.apk -o decoded >/dev/null
+          python3 -B - <<'PY'
+          import pathlib, re
+          package = pathlib.Path('decoded/smali/com/dycomment/tv')
+          source = (package/'DouyinApi.smali').read_text()
+          match = re.search(r'\.field private static final DEFAULT_COOKIE:Ljava/lang/String; = (".*")', source)
+          if not match:
+              raise RuntimeError('Pinned shared-account field changed; refuse export')
+          secret = match.group(1)
+          export = pathlib.Path('sanitized-ui')
+          export.mkdir()
+          for prefix in ['ProfileActivity', 'FeaturedActivity', 'SearchActivity', 'MainActivity',
+                         'DouyinApi$FeedItem', 'DouyinApi$HotSearchItem', 'DouyinApi$UserItem']:
+              for path in package.glob(prefix+'*.smali'):
+                  body = path.read_text().replace(secret, '""')
+                  if secret != '""' and secret in body:
+                      raise RuntimeError('Credential sanitization failed')
+                  (export/path.name).write_text(body)
+          for path in pathlib.Path('decoded/res/layout').glob('*.xml'):
+              (export/path.name).write_text(path.read_text().replace(secret, '""'))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sanitized-legacy-ui-source
+          path: sanitized-ui/
+          retention-days: 2

@@ -3,6 +3,8 @@ package com.dycomment.tv;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -145,6 +147,58 @@ public final class CommentsSelfTestActivity extends Activity {
         }
     }
 
+    private void requireCircularPixels(ImageView avatar, int centerColor, boolean placeholder) {
+        int size = avatar.getWidth();
+        Bitmap rendered = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        try {
+            avatar.draw(new Canvas(rendered));
+            int[] outside = {0, size / 10, size - size / 10 - 1, size - 1};
+            for (int x : outside) for (int y : outside) {
+                require(Color.alpha(rendered.getPixel(x, y)) == 0,
+                        "avatar background and image corners must be transparent");
+            }
+            int[] inside = {size / 4, size / 2, size * 3 / 4};
+            for (int x : inside) {
+                int pixel = rendered.getPixel(x, size / 2);
+                require(placeholder ? pixel == 0x26ffffff : pixel == centerColor,
+                        placeholder ? "round placeholder is visible without previous image pixels"
+                                : "loaded avatar remains visible and center cropped");
+            }
+            rendered.eraseColor(Color.BLUE);
+            avatar.draw(new Canvas(rendered));
+            for (int x : outside) for (int y : outside) {
+                require(rendered.getPixel(x, y) == Color.BLUE,
+                        "avatar mask must preserve the comment row underneath");
+            }
+        } finally {
+            rendered.recycle();
+        }
+    }
+
+    private void circularAvatar(ImageView avatar) {
+        PreviewImages loader = new PreviewImages();
+        Bitmap loaded = Bitmap.createBitmap(80, 40, Bitmap.Config.ARGB_8888);
+        try {
+            loader.bind(avatar, "");
+            requireCircularPixels(avatar, 0, true);
+            loaded.eraseColor(Color.RED);
+            Paint paint = new Paint();
+            paint.setColor(Color.GREEN);
+            new Canvas(loaded).drawRect(20, 0, 60, 40, paint);
+            // Models the loader's completion, including its still-present square background.
+            avatar.setImageBitmap(loaded);
+            requireCircularPixels(avatar, Color.GREEN, false);
+            loader.bind(avatar, "");
+            // API21 may retain an empty BitmapDrawable after setImageBitmap(null).
+            // The rendered placeholder must return with no pixels from the old bitmap.
+            requireCircularPixels(avatar, 0, true);
+        } finally {
+            avatar.setImageBitmap(null);
+            loader.close();
+            loaded.recycle();
+        }
+    }
+
     private final Runnable rapidDown = new Runnable() {
         public void run() {
             if (done) return;
@@ -178,6 +232,7 @@ public final class CommentsSelfTestActivity extends Activity {
                     require(avatar.getLeft() > row.getWidth() / 2
                             && Math.abs(avatar.getTop() + avatar.getHeight() / 2
                                     - row.getHeight() / 2) <= 1, "avatar on right and vertically centered");
+                    circularAvatar(avatar);
                     require(((ViewGroup) list.getParent()).getChildCount() == 3,
                             "comment panel contains only title, status, list");
                     savePopulatedScreenshot();
