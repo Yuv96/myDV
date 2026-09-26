@@ -29,7 +29,9 @@ for attempt in $(seq 1 35); do
 done
 cat evidence/comments-test.txt
 $passed
-adb pull /sdcard/Android/data/com.dycomment.tv.android5/files/comments-populated.png evidence/comments-populated.png
+comments_screenshot=$(sed -n 's/.*SCREENSHOT_PATH=//p' evidence/comments-test.txt | tr -d '\r' | tail -n 1)
+test -n "$comments_screenshot"
+adb pull "$comments_screenshot" evidence/comments-populated.png
 adb logcat -c
 adb shell am start -W -n com.dycomment.tv.android5/com.dycomment.tv.PlaybackSelfTestActivity
 passed=false

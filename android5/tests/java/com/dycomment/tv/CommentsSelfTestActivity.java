@@ -119,9 +119,12 @@ public final class CommentsSelfTestActivity extends Activity {
             decor.draw(new Canvas(picture));
             File directory = getExternalFilesDir(null);
             if (directory == null) directory = getFilesDir();
-            try (FileOutputStream out = new FileOutputStream(new File(directory, "comments-populated.png"))) {
+            File screenshot = new File(directory, "comments-populated.png");
+            try (FileOutputStream out = new FileOutputStream(screenshot)) {
                 require(picture.compress(Bitmap.CompressFormat.PNG, 100, out), "save populated screenshot");
             }
+            require(screenshot.isFile() && screenshot.length() > 0, "populated screenshot exists");
+            Log.i("Android5CommentsTest", "SCREENSHOT_PATH=" + screenshot.getCanonicalPath());
         } finally {
             picture.recycle();
         }
