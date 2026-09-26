@@ -321,6 +321,15 @@ public final class SwitchingSelfTestActivity extends Activity
                                                         & android.view.Gravity.VERTICAL_GRAVITY_MASK)
                                                 != android.view.Gravity.TOP)
                                     throw new Exception("clock is not at the top-right corner");
+                                InteractionController.field(feed, "showClock", true);
+                                InteractionController.updateClock(feed);
+                                android.widget.TextView clock =
+                                        (android.widget.TextView) field("tvClock");
+                                if (!clock.getText().toString().endsWith("\u2002\u2002|\u2002\u2002未登录")
+                                        || clock.getVisibility() != View.VISIBLE)
+                                    throw new Exception("logged-out hint is missing from clock capsule");
+                                if (feed.getWindow().getDecorView().findViewById(0x7f0f7a58) != null)
+                                    throw new Exception("obsolete center login banner remains");
                                 Log.i("Android5SwitchTest", "METADATA_TIMER_MENU_AND_CLOCK_OK");
                                 Log.i(
                                         "Android5SwitchTest",

@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,6 +33,8 @@ public final class InteractionController {
     boolean busy, stateLoading, resumePlayback;
     long lastUnread;
     int unread = -1;
+    int unreadGeneration;
+    boolean unreadHealthy;
     final SimpleDateFormat clockFormat = new SimpleDateFormat("HH:mm", Locale.CHINA);
     final Date clockDate = new Date();
     long clockMinute = -1;
@@ -524,35 +529,43 @@ public final class InteractionController {
         try {
             TextView clock = (TextView) field(a, "tvClock");
             if (clock == null) return;
-            if (!((Boolean) field(a, "showClock"))) {
-                clock.setVisibility(View.GONE);
-                return;
-            }
-            clock.setVisibility(View.VISIBLE);
+            boolean showTime = (Boolean) field(a, "showClock");
             String cookie = SocialApi.cookie();
-            if (!cookie.equals(c.unreadSession)) {
-                c.unreadSession = cookie;
-                c.unread = -1;
-                c.lastUnread = 0;
-            }
+            boolean personal = SocialApi.personalCookie() && CredentialStore.hasSession(cookie);
+            boolean healthy = personal && !CredentialHealth.needsRefresh();
+            c.syncUnreadAccount(cookie, healthy);
+            // The login hint remains available even when the user hides the time.
+            clock.setVisibility(showTime || !healthy ? View.VISIBLE : View.GONE);
             long wall = System.currentTimeMillis();
             if (c.clockMinute != wall / 60000) {
                 c.clockMinute = wall / 60000;
                 c.clockDate.setTime(wall);
                 c.clockTime = c.clockFormat.format(c.clockDate);
             }
-            String label = c.clockTime + (c.unread > 0 ? "  |  +" + c.unread : "");
-            if (!label.contentEquals(clock.getText())) clock.setText(label);
-            String description = c.unread > 0 ? "时间，抖音未读通知 " + c.unread : "时间";
+            String status = !healthy ? "未登录" : c.unread >= 0 ? "+" + c.unread : "--";
+            String label = (showTime ? c.clockTime + "\u2002\u2002|\u2002\u2002" : "") + status;
+            if (!label.contentEquals(clock.getText())) {
+                SpannableString styled = new SpannableString(label);
+                if (showTime) {
+                    int separator = label.indexOf('|');
+                    styled.setSpan(new ForegroundColorSpan(0x66ffffff), separator, separator + 1,
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+                clock.setText(styled);
+            }
+            String description = (showTime ? "时间，" : "")
+                    + (!healthy ? "未登录" : c.unread >= 0
+                            ? "抖音未读通知 " + c.unread : "抖音未读通知暂不可用");
             if (!description.equals(clock.getContentDescription()))
                 clock.setContentDescription(description);
             long now = SystemClock.elapsedRealtime();
             if (!c.foreground
-                    || !SocialApi.personalCookie()
+                    || !personal
                     || c.unreadLoading
                     || (c.lastUnread != 0 && now - c.lastUnread < 30000)) return;
             c.unreadLoading = true;
             c.lastUnread = now;
+            final int requestGeneration = c.unreadGeneration;
             c.unreadWork.execute(
                     () -> {
                         int count;
@@ -562,17 +575,38 @@ public final class InteractionController {
                             count = -1;
                         }
                         final int result = count;
-                        c.handler.post(
-                                () -> {
-                                    c.unreadLoading = false;
-                                    if (a.isFinishing()
-                                            || a.isDestroyed()
-                                            || !cookie.equals(SocialApi.cookie())) return;
-                                    if (result >= 0) c.unread = result;
-                                    updateClock(a);
-                                });
+                        c.handler.post(() -> c.finishUnread(cookie, requestGeneration, result));
                     });
         } catch (Exception ignored) {
         }
+    }
+
+    private void syncUnreadAccount(String cookie, boolean healthy) {
+        if (!cookie.equals(unreadSession)) {
+            unreadSession = cookie;
+            unreadGeneration++;
+            unreadLoading = false;
+            unread = -1;
+            lastUnread = 0;
+        }
+        if (healthy != unreadHealthy) {
+            unreadHealthy = healthy;
+            unread = -1;
+            lastUnread = 0;
+        }
+    }
+
+    void finishUnread(String cookie, int requestGeneration, int result) {
+        if (activity.isFinishing() || activity.isDestroyed()
+                || requestGeneration != unreadGeneration
+                || !cookie.equals(SocialApi.cookie())) return;
+        unreadLoading = false;
+        boolean healthy = SocialApi.personalCookie() && CredentialStore.hasSession(cookie)
+                && !CredentialHealth.needsRefresh();
+        syncUnreadAccount(cookie, healthy);
+        // A transport failure retains a known count; it never changes account health.
+        if (result >= 0 && healthy) unread = result;
+        lastUnread = SystemClock.elapsedRealtime();
+        updateClock(activity);
     }
 }

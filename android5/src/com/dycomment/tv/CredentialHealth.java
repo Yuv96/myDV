@@ -5,10 +5,8 @@ import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
-import android.widget.TextView;
 
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
@@ -50,6 +48,7 @@ final class CredentialHealth {
 
     static synchronized void success(String endpoint, String session) {
         if (!session.equals(SocialApi.cookie())) return;
+        currentAccount(session);
         failures.remove(endpoint);
         if (endpoint.equals(suspect)) {
             suspect = "";
@@ -59,11 +58,7 @@ final class CredentialHealth {
 
     static synchronized void rejected(String endpoint, String session, boolean explicit) {
         if (session.isEmpty() || !session.equals(SocialApi.cookie())) return;
-        if (!session.equals(account)) {
-            failures.clear();
-            suspect = "";
-            account = session;
-        }
+        currentAccount(session);
         long now = SystemClock.elapsedRealtime();
         Window w = failures.get(endpoint);
         if (w == null) {
@@ -78,7 +73,15 @@ final class CredentialHealth {
     }
 
     static synchronized boolean needsRefresh() {
+        currentAccount(SocialApi.cookie());
         return !suspect.isEmpty();
+    }
+
+    private static void currentAccount(String session) {
+        if (session.equals(account)) return;
+        failures.clear();
+        suspect = "";
+        account = session;
     }
 
     static void attach(Activity a) {
@@ -101,28 +104,10 @@ final class CredentialHealth {
         Activity a = host.get();
         if (a == null || a.isFinishing() || a.isDestroyed()) return;
         ViewGroup decor = (ViewGroup) a.getWindow().getDecorView();
-        TextView banner = decor.findViewById(BANNER);
-        String label =
-                !SocialApi.personalCookie()
-                        ? "尚未登录 · 返回键 → 账号与登录 → 扫码登录"
-                        : needsRefresh() ? "登录或评论权限可能失效 · 返回键 → 账号与登录 → 重新扫码" : "";
-        if (label.isEmpty()) {
-            if (banner != null) decor.removeView(banner);
-            return;
-        }
-        if (banner == null) {
-            banner = UiTheme.text(a, label, 14);
-            banner.setId(BANNER);
-            banner.setTextColor(UiTheme.PINK);
-            banner.setBackgroundColor(0xe6000000);
-            int p = ModernMenuHelper.dp(a, 10);
-            banner.setPadding(p, p, p, p);
-            banner.setOnClickListener(v -> open(a));
-            FrameLayout.LayoutParams lp =
-                    new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-            lp.topMargin = ModernMenuHelper.dp(a, 18);
-            decor.addView(banner, lp);
-        }
-        if (!label.contentEquals(banner.getText())) banner.setText(label);
+        // Remove a banner left by an existing host; account state now belongs to the clock capsule.
+        View banner = decor.findViewById(BANNER);
+        if (banner != null && banner.getParent() instanceof ViewGroup)
+            ((ViewGroup) banner.getParent()).removeView(banner);
+        InteractionController.updateClock(a);
     }
 }

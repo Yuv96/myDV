@@ -12,6 +12,9 @@ import java.util.List;
 
 /** Local fixtures only: no account, cookies, messages or network writes. */
 public final class InteractionSelfTestActivity extends Activity {
+    private TextView tvClock;
+    private boolean showClock = true;
+
     void require(boolean ok, String detail) {
         if (!ok) throw new IllegalStateException(detail);
     }
@@ -231,6 +234,7 @@ public final class InteractionSelfTestActivity extends Activity {
                             && VideoSocialState.label(1, -1).contains("未知"),
                     "follow states never guess unknown");
             verifyInfoCardLifecycle();
+            verifyClockCapsule();
             Wire parsed = new Wire(new Wire.Out().number(1, Long.MAX_VALUE).text(2, "你好").done());
             require(
                     parsed.number(1, 0) == Long.MAX_VALUE && parsed.text(2).equals("你好"),
@@ -329,6 +333,127 @@ public final class InteractionSelfTestActivity extends Activity {
         } catch (Exception e) {
             result.setText("FAIL " + e.getMessage());
             Log.e("Android5InteractionTest", "FAIL " + e.getMessage());
+        }
+    }
+
+    private void fixtureCookie(String cookie) throws Exception {
+        Class.forName("com.dycomment.tv.DouyinApi")
+                .getMethod("setCookie", String.class, android.content.Context.class)
+                .invoke(null, cookie, this);
+    }
+
+    private void requireCapsule(String status) {
+        String label = tvClock.getText().toString();
+        require(tvClock.getVisibility() == android.view.View.VISIBLE,
+                "account capsule remains visible");
+        require(label.endsWith("\u2002\u2002|\u2002\u2002" + status),
+                "capsule status with balanced spacing: " + status);
+        require(label.substring(0, 5).matches("[0-9]{2}:[0-9]{2}"), "capsule includes time");
+        require(tvClock.getText() instanceof android.text.Spanned, "capsule styles separator");
+        android.text.Spanned text = (android.text.Spanned) tvClock.getText();
+        android.text.style.ForegroundColorSpan[] spans = text.getSpans(
+                0, text.length(), android.text.style.ForegroundColorSpan.class);
+        require(spans.length == 1 && spans[0].getForegroundColor() == 0x66ffffff,
+                "separator alone uses softer white");
+        int separator = label.indexOf('|');
+        require(text.getSpanStart(spans[0]) == separator
+                        && text.getSpanEnd(spans[0]) == separator + 1,
+                "time and account status retain normal text color");
+    }
+
+    private void verifyClockCapsule() throws Exception {
+        android.view.ViewGroup decor = (android.view.ViewGroup) getWindow().getDecorView();
+        tvClock = new TextView(this);
+        decor.addView(tvClock);
+        TextView obsoleteBanner = new TextView(this);
+        obsoleteBanner.setId(0x7f0f7a58);
+        decor.addView(obsoleteBanner);
+        InteractionController controller = InteractionController.get(this);
+        // Keep the real request worker inactive: every response below is a synthetic fixture.
+        controller.foreground = false;
+        String first = "sessionid=fixture-capsule-account-a";
+        String second = "sessionid_ss=fixture-capsule-account-b";
+        String endpoint = "/aweme/v1/web/notice/count/";
+        try {
+            fixtureCookie("");
+            CredentialHealth.reset();
+            CredentialHealth.attach(this);
+            requireCapsule("未登录");
+            require(decor.findViewById(0x7f0f7a58) == null,
+                    "legacy center login banner is removed");
+
+            fixtureCookie("msToken=fixture-sdk-token-only");
+            InteractionController.updateClock(this);
+            requireCapsule("未登录");
+
+            fixtureCookie(first);
+            InteractionController.updateClock(this);
+            requireCapsule("--");
+            int firstGeneration = controller.unreadGeneration;
+            controller.finishUnread(first, firstGeneration, 0);
+            requireCapsule("+0");
+            controller.finishUnread(first, firstGeneration, 7);
+            requireCapsule("+7");
+            controller.finishUnread(first, firstGeneration, -1);
+            requireCapsule("+7");
+            require(!CredentialHealth.needsRefresh(), "network failure is not logout");
+
+            CredentialHealth.rejected(endpoint, first, false);
+            InteractionController.updateClock(this);
+            requireCapsule("+7");
+            require(!CredentialHealth.needsRefresh(), "one ambiguous rejection is not logout");
+            CredentialHealth.rejected(endpoint, first, true);
+            InteractionController.updateClock(this);
+            requireCapsule("未登录");
+            controller.finishUnread(first, firstGeneration, 99);
+            requireCapsule("未登录");
+            CredentialHealth.success(endpoint, first);
+            InteractionController.updateClock(this);
+            requireCapsule("--");
+            controller.finishUnread(first, firstGeneration, 2);
+            requireCapsule("+2");
+
+            CredentialHealth.rejected(endpoint, first, true);
+            fixtureCookie(second);
+            InteractionController.updateClock(this);
+            require(!CredentialHealth.needsRefresh(), "old account suspicion is not inherited");
+            requireCapsule("--");
+            int secondGeneration = controller.unreadGeneration;
+            controller.unreadLoading = true;
+            controller.finishUnread(first, firstGeneration, 88);
+            require(controller.unreadLoading, "stale response cannot clear new account request");
+            requireCapsule("--");
+            controller.finishUnread(second, secondGeneration, -1);
+            requireCapsule("--");
+            require(!CredentialHealth.needsRefresh(), "unknown count is not logout or fake zero");
+            controller.finishUnread(second, secondGeneration, 3);
+            requireCapsule("+3");
+            fixtureCookie(first);
+            InteractionController.updateClock(this);
+            controller.finishUnread(first, firstGeneration, 77);
+            requireCapsule("--");
+            require(controller.unreadGeneration != firstGeneration,
+                    "switching away and back invalidates the original response");
+
+            showClock = false;
+            InteractionController.updateClock(this);
+            require(tvClock.getVisibility() == android.view.View.GONE,
+                    "healthy account respects hidden clock preference");
+            fixtureCookie("");
+            InteractionController.updateClock(this);
+            require(tvClock.getVisibility() == android.view.View.VISIBLE
+                            && tvClock.getText().toString().equals("未登录"),
+                    "hidden clock still exposes the sole login hint without a separator");
+            Log.i("Android5InteractionTest", "CAPSULE_AUTH_COUNTS_NETWORK_ACCOUNT_SWITCH_STYLE_OK");
+        } finally {
+            CredentialHealth.detach(this);
+            fixtureCookie("");
+            CredentialHealth.reset();
+            controller.unreadLoading = false;
+            showClock = true;
+            decor.removeView(tvClock);
+            decor.removeView(obsoleteBanner);
+            tvClock = null;
         }
     }
 

@@ -41,7 +41,7 @@ final class CommentsPanel extends FrameLayout {
         final String signature = a.getSharedPreferences("dy_config", 0).getString("a_bogus", "");
         return new PageSource() {
             public boolean ready() {
-                return SocialApi.personalCookie();
+                return SocialApi.personalCookie() && CredentialStore.hasSession(session);
             }
 
             public boolean current() {
@@ -207,7 +207,8 @@ final class CommentsPanel extends FrameLayout {
     private void load() {
         if (busy || !hasMore || !active()) return;
         if (!source.ready()) {
-            status("请先扫码登录");
+            // Account state lives in the time capsule, not in the reading area.
+            status("");
             retryBlocked = true;
             return;
         }
@@ -255,7 +256,7 @@ final class CommentsPanel extends FrameLayout {
                     if (!active()) return;
                     busy = false;
                     retryBlocked = true;
-                    status("评论暂时无法读取，向下滚动重试");
+                    status(CredentialHealth.needsRefresh() ? "" : "评论暂时无法读取，向下滚动重试");
                 });
             }
         });
