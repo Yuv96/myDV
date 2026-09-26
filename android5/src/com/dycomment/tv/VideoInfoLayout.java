@@ -17,8 +17,9 @@ public final class VideoInfoLayout extends LinearLayout {
         float density = getResources().getDisplayMetrics().density;
         int available = MeasureSpec.getSize(widthSpec);
         if (MeasureSpec.getMode(widthSpec) != MeasureSpec.UNSPECIFIED) {
-            // Small windows need the available width; TVs leave the right side unobscured.
-            int ceiling = available < 600 * density ? available : Math.round(available * .72f);
+            // Equal side margins make half of the available span end at the screen midpoint.
+            // This includes both the avatar and the text card, even in narrow windows.
+            int ceiling = available / 2;
             ceiling = Math.min(ceiling, Math.round(720 * density));
             widthSpec = MeasureSpec.makeMeasureSpec(ceiling, MeasureSpec.AT_MOST);
         }

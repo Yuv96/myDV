@@ -1,5 +1,7 @@
 package com.dycomment.tv;
 
+import android.content.Context;
+
 import org.json.*;
 
 import java.io.*;
@@ -60,7 +62,8 @@ final class QuickShareApi {
         return p;
     }
 
-    static Wire request(int cmd, int inbox, String path, byte[] body, String uid, String cookie)
+    static Wire request(
+            int cmd, int inbox, String path, byte[] body, String deviceId, String cookie)
             throws Exception {
         Wire.Out o =
                 new Wire.Out()
@@ -72,7 +75,7 @@ final class QuickShareApi {
                         .number(6, inbox)
                         .text(7, "eb11b84dd0eb26ae22321b53426d3f976b920862")
                         .bytes(8, new Wire.Out().bytes(cmd, body).done())
-                        .text(9, uid)
+                        .text(9, deviceId)
                         .text(11, "mac")
                         .text(14, "1.2.1")
                         .number(18, 1)
@@ -91,9 +94,9 @@ final class QuickShareApi {
                                 "version_code",
                                 "1.2.1",
                                 "device_id",
-                                uid,
+                                deviceId,
                                 "did",
-                                uid,
+                                deviceId,
                                 "iid",
                                 "0"));
         HttpURLConnection c =
@@ -182,7 +185,8 @@ final class QuickShareApi {
         return card;
     }
 
-    static String share(String id, String friend, String cookie) throws Exception {
+    static String share(Context context, String id, String friend, String cookie) throws Exception {
+        final String deviceId = DeviceIdentity.fallbackDeviceId(context);
         JSONObject self =
                 SocialApi.request(
                                 "/aweme/v1/web/user/profile/self/",
@@ -218,7 +222,7 @@ final class QuickShareApi {
                                 .number(2, Long.parseLong(friend))
                                 .bytes(11, biz)
                                 .done(),
-                        uid,
+                        deviceId,
                         cookie);
         if (created.number(5, 0) != 0 || created.number(2, 0) != 0) throw new Exception("无法建立好友会话");
         Wire conv = created.child(1);
@@ -254,7 +258,7 @@ final class QuickShareApi {
                         (int) conv.number(9, 0),
                         "/v1/message/send",
                         message.done(),
-                        uid,
+                        deviceId,
                         cookie);
         return shareResult(sent, client);
     }

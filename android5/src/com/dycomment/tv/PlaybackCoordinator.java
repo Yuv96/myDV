@@ -151,6 +151,8 @@ public final class PlaybackCoordinator {
         c.epoch++;
         c.failed = false;
         c.info.selected();
+        if (ModernMenuHelper.recallsMetadata(a)) c.info.menu(true);
+        VideoSocialState.selected(a);
         c.main.removeCallbacks(c.hideInfo);
         c.cancelLegacyInfoTimer();
         c.hideMetadata();
@@ -180,6 +182,7 @@ public final class PlaybackCoordinator {
         PlaybackCoordinator c = get(a);
         if (!c.waiting) c.info.ready(android.os.SystemClock.elapsedRealtime());
         c.renderMetadata();
+        if (!c.waiting) VideoSocialState.ready(a);
     }
 
     public static boolean canHideLoading(Activity a) {
@@ -210,6 +213,7 @@ public final class PlaybackCoordinator {
         }
         c.info.ready(android.os.SystemClock.elapsedRealtime());
         c.renderMetadata();
+        VideoSocialState.ready(a);
     }
 
     public static boolean error(Activity a) {

@@ -207,6 +207,29 @@ public final class InteractionSelfTestActivity extends Activity {
             }
             require(nestedRejected, "nested audit overrides outer acceptance");
             verifyAdaptiveCard();
+            require(
+                    DeviceIdentity.guidDeviceId("0123456789abcdef0123456789abcdef")
+                                    .equals("2511650128")
+                            && DeviceIdentity.guidDeviceId("ffffffffffffffffffffffffffffffff")
+                                    .equals("2024426496"),
+                    "desktop GUID fallback uses unsigned 32-bit hash");
+            require(
+                    DeviceIdentity.fallbackDeviceId(this)
+                            .equals(DeviceIdentity.fallbackDeviceId(this)),
+                    "share device identity persists independently of account");
+            require(
+                    VideoSocialState.label(0, 0).equals("未点赞")
+                            && VideoSocialState.label(0, 1).equals("已点赞")
+                            && VideoSocialState.label(2, 0).equals("未收藏")
+                            && VideoSocialState.label(2, 1).equals("已收藏"),
+                    "like and collection states");
+            require(
+                    VideoSocialState.label(1, 0).equals("未关注")
+                            && VideoSocialState.label(1, 1).equals("已关注")
+                            && VideoSocialState.label(1, 2).equals("已关注")
+                            && VideoSocialState.label(1, 4).equals("关注待确认")
+                            && VideoSocialState.label(1, -1).contains("未知"),
+                    "follow states never guess unknown");
             verifyInfoCardLifecycle();
             Wire parsed = new Wire(new Wire.Out().number(1, Long.MAX_VALUE).text(2, "你好").done());
             require(
@@ -326,6 +349,20 @@ public final class InteractionSelfTestActivity extends Activity {
                 root.findViewById(
                         getResources().getIdentifier("infoOverlay", "id", getPackageName()));
         overlay.setVisibility(android.view.View.VISIBLE);
+        require(
+                title.getMaxLines() == 2
+                        && title.getEllipsize() == android.text.TextUtils.TruncateAt.END,
+                "title ends after two lines");
+        android.view.View badge =
+                root.findViewById(
+                        getResources()
+                                .getIdentifier("android5_follow_badge", "id", getPackageName()));
+        android.widget.FrameLayout.LayoutParams badgeParams =
+                (android.widget.FrameLayout.LayoutParams) badge.getLayoutParams();
+        require(
+                badgeParams.gravity
+                        == (android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL),
+                "follow tag at avatar bottom center");
         author.setText("作者");
         stats.setText("赞 1 · 评 2");
         title.setText("短标题");
@@ -381,9 +418,18 @@ public final class InteractionSelfTestActivity extends Activity {
                 android.view.View.MeasureSpec.makeMeasureSpec(
                         ModernMenuHelper.dp(this, 720), android.view.View.MeasureSpec.EXACTLY));
         root.layout(0, 0, root.getMeasuredWidth(), root.getMeasuredHeight());
+        android.view.View overlay =
+                root.findViewById(
+                        getResources().getIdentifier("infoOverlay", "id", getPackageName()));
+        require(
+                overlay.getRight() <= root.getMeasuredWidth() / 2,
+                "avatar and card together never cross the screen midpoint");
         android.view.View avatar =
                 root.findViewById(
                         getResources().getIdentifier("ivAuthorAvatar", "id", getPackageName()));
+        require(
+                avatar.getClass().getSimpleName().equals("CircleImageView"),
+                "avatar keeps circular rendering");
         android.view.View author =
                 root.findViewById(getResources().getIdentifier("tvAuthor", "id", getPackageName()));
         android.view.View card = (android.view.View) author.getParent().getParent();

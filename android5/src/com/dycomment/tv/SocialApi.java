@@ -311,6 +311,21 @@ public final class SocialApi {
         return s;
     }
 
+    static State authorState(String secUid, String session) throws Exception {
+        JSONObject user =
+                request(
+                                "/aweme/v1/web/user/profile/other/",
+                                params("sec_user_id", secUid),
+                                false,
+                                session)
+                        .optJSONObject("user");
+        if (user == null) throw new Exception("作者状态暂不可用");
+        State state = new State();
+        state.followed = user.optInt("follow_status", -1);
+        state.uid = user.optString("uid", "");
+        return state;
+    }
+
     static void change(
             int action, boolean enabled, String id, String uid, String secUid, String session)
             throws Exception {

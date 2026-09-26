@@ -165,7 +165,9 @@ public final class QuickShareActivity extends Activity {
                     String message;
                     boolean ok = false;
                     try {
-                        message = QuickShareApi.share(id, friend.uid, session);
+                        message =
+                                QuickShareApi.share(
+                                        QuickShareActivity.this, id, friend.uid, session);
                         ok = true;
                     } catch (Exception e) {
                         message = "分享未确认，请先在抖音检查后再重试";

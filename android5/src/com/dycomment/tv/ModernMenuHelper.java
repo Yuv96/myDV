@@ -87,6 +87,14 @@ public final class ModernMenuHelper {
         return p;
     }
 
+    static boolean recallsMetadata(Activity a) {
+        for (WeakReference<Panel> reference : panels) {
+            Panel p = reference.get();
+            if (p != null && !p.closed && p.getContext() == a && p.recallsMetadata) return true;
+        }
+        return false;
+    }
+
     public static void dismissCurrentMenu(Activity a) {
         for (int i = panels.size() - 1; i >= 0; i--) {
             Panel p = panels.get(i).get();
