@@ -50,8 +50,10 @@ public class QrLoginActivity extends Activity {
         verify = UiTheme.button(this, "验证登录", () -> verifyLogin());
         refresh = UiTheme.button(this, "重新打开", () -> restart());
         for (TextView button : new TextView[] {operate, verify, refresh,
-                UiTheme.button(this, "返回", () -> finish())})
+                UiTheme.button(this, "返回", () -> finish())}) {
+            button.setFocusableInTouchMode(true);
             controls.addView(button, new LinearLayout.LayoutParams(0, -2, 1));
+        }
         root.addView(controls);
         setContentView(root);
         operate.requestFocus();
