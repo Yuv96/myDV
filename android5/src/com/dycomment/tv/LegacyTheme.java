@@ -11,11 +11,13 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import java.util.WeakHashMap;
+import java.lang.ref.WeakReference;
 
 /** Shared drawing policy for the three pinned, programmatically built legacy pages. */
 public final class LegacyTheme {
     private static final WeakHashMap<GradientDrawable, Boolean> ovals = new WeakHashMap<>();
     private static final WeakHashMap<GradientDrawable, Integer> colors = new WeakHashMap<>();
+    private static final WeakHashMap<GradientDrawable, WeakReference<View>> owners = new WeakHashMap<>();
     private LegacyTheme() {}
 
     public static void attach(Activity activity) {
@@ -87,6 +89,14 @@ public final class LegacyTheme {
 
     public static void drawableColor(GradientDrawable drawable, int color) {
         colors.put(drawable, color);
+        WeakReference<View> reference = owners.get(drawable);
+        View owner = reference == null ? null : reference.get();
+        if (owner != null && owner.isFocusable()) {
+            // Search applies its selected color AFTER attaching the same drawable.
+            if (owner instanceof TextView) owner.setSelected(accent(color));
+            control(owner);
+            return;
+        }
         drawable.setColor(accent(color) ? UiTheme.PINK
                 : Color.alpha(color) == 0 ? Color.TRANSPARENT : UiTheme.BLACK);
     }
@@ -100,8 +110,14 @@ public final class LegacyTheme {
         // Keep GradientDrawable: the upstream tab handlers cast getBackground() to it.
         if (drawable instanceof GradientDrawable) {
             GradientDrawable gradient = (GradientDrawable) drawable;
+            owners.put(gradient, new WeakReference<>(view));
             if (view.getClass() == View.class && Boolean.TRUE.equals(ovals.get(gradient))) {
                 gradient.setColor(Color.TRANSPARENT); // Remove decorative colored header bubbles.
+                gradient.setStroke(0, Color.TRANSPARENT);
+            } else if (view.getClass() == View.class) {
+                Integer color = colors.get(gradient);
+                int flat = color != null && accent(color) ? UiTheme.PINK : 0x26ffffff;
+                gradient.setColors(new int[] {flat, flat});
                 gradient.setStroke(0, Color.TRANSPARENT);
             } else if (view instanceof ViewGroup || view instanceof TextView) {
                 Integer color = colors.get(gradient);
@@ -132,6 +148,7 @@ public final class LegacyTheme {
     static void control(View view) {
         GradientDrawable background = view.getBackground() instanceof GradientDrawable
                 ? (GradientDrawable) view.getBackground() : new GradientDrawable();
+        owners.put(background, new WeakReference<>(view));
         background.setShape(GradientDrawable.RECTANGLE);
         background.setColors(new int[] {view.isFocused() ? 0xff202020 : UiTheme.BLACK,
                 view.isFocused() ? 0xff202020 : UiTheme.BLACK});

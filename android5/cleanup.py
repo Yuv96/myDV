@@ -31,17 +31,29 @@ def legacy_theme(package):
         ('setOnFocusChangeListener', 'Landroid/view/View$OnFocusChangeListener;'):
             ('focusListener', 'Landroid/view/View;Landroid/view/View$OnFocusChangeListener;'),
     }
+    encoded_labels = {json.dumps(old, ensure_ascii=True): json.dumps(new, ensure_ascii=True)
+                      for old, new in labels.items()}
+    seen_labels = set()
+    replacements = 0
+    def normalized(literal):
+        return re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: '\\u' + m.group(1).lower(), literal)
     for file in package.glob('*.smali'):
         if not file.name.startswith(owners):
             continue
         body = file.read_text()
         def label(match):
-            value = json.loads(match.group(2))
-            replacement = labels.get(value, value)
-            if file.name == 'ProfileActivity$ProfileCallbackImpl.smali' and value == '👥 ':
-                replacement = '关注 '
-            return match.group(1) + json.dumps(replacement, ensure_ascii=True)
+            nonlocal replacements
+            literal = normalized(match.group(2))
+            replacement = encoded_labels.get(literal, literal)
+            if literal in encoded_labels:
+                seen_labels.add(literal)
+                replacements += 1
+            if file.name == 'ProfileActivity$ProfileCallbackImpl.smali' and literal == json.dumps('👥 ', ensure_ascii=True):
+                replacement = json.dumps('关注 ', ensure_ascii=True)
+            return match.group(1) + (replacement if literal in encoded_labels else match.group(2))
         body = re.sub(r'(const-string(?:/jumbo)? [vp]\d+, )("(?:[^"\\]|\\.)*")', label, body)
+        remaining = re.findall(r'const-string(?:/jumbo)? [vp]\d+, ("(?:[^"\\]|\\.)*")', body)
+        assert not any(normalized(value) in encoded_labels for value in remaining), 'legacy UI label replacement incomplete'
         for (method, signature), (target, arguments) in drawing.items():
             pattern = (r'invoke-virtual(?P<range>/range)? (?P<args>\{[^}]+\}), '
                        r'Landroid/(?:view|widget)/[\w$]+;->' + method
@@ -72,6 +84,18 @@ def legacy_theme(package):
                 hook = '    invoke-static {p0}, Lcom/dycomment/tv/LegacyTheme;->attach(Landroid/app/Activity;)V'
                 body = body.replace(hook, hook + fixture)
         file.write_text(body)
+    assert seen_labels == set(encoded_labels), 'pinned legacy UI labels changed; review the source export'
+    main = package / 'MainActivity.smali'
+    body = main.read_text()
+    for old, new in [('🔴 ', ''), ('⏩ +5s', '快进 +5s'), ('⏪ -5s', '快退 -5s')]:
+        old_literal = json.dumps(old, ensure_ascii=True)
+        pattern = r'(const-string(?:/jumbo)? [vp]\d+, )' + re.escape(old_literal)
+        body, count = re.subn(pattern, lambda m: m.group(1) + json.dumps(new, ensure_ascii=True), body)
+        assert count == 1, 'pinned MainActivity plain-text label changed'
+        replacements += count
+        assert old_literal not in body, 'old MainActivity UI label remains'
+    main.write_text(body)
+    print('LEGACY UI: replaced', replacements, 'audited static labels; all drawing hooks installed')
 
 
 def replace_method(text, name, instructions):

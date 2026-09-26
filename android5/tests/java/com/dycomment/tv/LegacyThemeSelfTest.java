@@ -16,6 +16,22 @@ final class LegacyThemeSelfTest {
     }
 
     static void run(Activity activity) {
+        try {
+            java.lang.reflect.Field field = Class.forName("com.dycomment.tv.DouyinApi")
+                    .getDeclaredField("QUALITY_NAMES");
+            field.setAccessible(true);
+            String[] quality = (String[]) field.get(null);
+            require(quality.length > 0, "quality picker has labels");
+            for (String label : quality) {
+                for (int i = 0; i < label.length(); i++) {
+                    char c = label.charAt(i);
+                    require(!Character.isSurrogate(c) && !(c >= 0x2600 && c <= 0x27ff),
+                            "quality picker retains plain text");
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("legacy quality picker schema changed", e);
+        }
         LinearLayout header = new LinearLayout(activity);
         GradientDrawable old = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[] {0xff2444ff, 0xffa622ff});
@@ -39,6 +55,13 @@ final class LegacyThemeSelfTest {
         LegacyTheme.background(bubble, circle);
         require(Color.alpha(pixel(bubble.getBackground(), 32, 32)) == 0,
                 "decorative bubbles are removed");
+        View divider = new View(activity);
+        LegacyTheme.background(divider, new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[] {0xffff2255, 0xff2244ff}));
+        int dividerPixel = pixel(divider.getBackground(), 32, 32);
+        require(Color.red(dividerPixel) == Color.green(dividerPixel)
+                        && Color.green(dividerPixel) == Color.blue(dividerPixel),
+                "header accent stripe becomes a neutral divider");
 
         TextView tab = new TextView(activity);
         tab.setFocusable(true);
@@ -59,6 +82,11 @@ final class LegacyThemeSelfTest {
                 "original focus behavior runs without zoom or glow");
         require(pixel(tab.getBackground(), 32, 32) == UiTheme.BLACK,
                 "selected control fill stays black");
+        LegacyTheme.drawableColor((GradientDrawable) tab.getBackground(), 0xff262626);
+        require(!tab.isSelected(), "in-place tab mutation clears the old selection");
+        LegacyTheme.drawableColor((GradientDrawable) tab.getBackground(), 0xfffe2c55);
+        require(tab.isSelected() && pixel(tab.getBackground(), 32, 32) == UiTheme.BLACK,
+                "in-place selected accent preserves a black fill");
         android.util.Log.i("Android5InteractionTest", "LEGACY_THEME_GRADIENT_FOCUS_USER_TEXT_OK");
     }
 
