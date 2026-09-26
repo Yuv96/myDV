@@ -214,6 +214,8 @@ clock.attrib.pop(a+'layout_marginEnd',None)
 for key in ['paddingBottom','paddingStart','paddingEnd']: card.attrib.pop(a+key,None)
 card.set(a+'padding','0dp'); card.set(a+'layout_marginStart','18dp'); card.set(a+'layout_marginEnd','18dp'); card.set(a+'layout_marginBottom','48dp')
 column.set(a+'padding','12dp'); column.set(a+'background','@drawable/android5_video_card')
+column.set(a+'layout_height','88dp'); column.set(a+'gravity','center_vertical')
+row[0].set(a+'layout_width','88dp'); row[0].set(a+'layout_height','88dp')
 column[1].set(a+'textColor','#e6ffffff')
 tree.write(layout,encoding='utf-8',xml_declaration=True)
 (decoded/'res/drawable/android5_video_card.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>

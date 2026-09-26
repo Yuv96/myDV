@@ -390,6 +390,14 @@ public final class InteractionSelfTestActivity extends Activity {
         require(
                 avatar.getMeasuredWidth() == avatar.getMeasuredHeight()
                         && avatar.getMeasuredHeight() == card.getMeasuredHeight(),
-                "square avatar follows actual card height at every width");
+                "circular avatar has square bounds matching the card at every width");
+        int stableHeight =
+                Math.round(
+                        88
+                                * getResources().getDisplayMetrics().density
+                                * Math.max(1f, getResources().getConfiguration().fontScale));
+        require(
+                card.getMeasuredHeight() == stableHeight,
+                "short, long and narrow cards retain the same bounded height");
     }
 }
