@@ -25,6 +25,7 @@ public final class InteractionSelfTestActivity extends Activity {
         TextView result = new TextView(this);
         setContentView(result);
         try {
+            LegacyThemeSelfTest.run(this);
             require(
                     QrSession.allowed(new java.net.URL("https://login.douyin.com/path")),
                     "official QR origin");

@@ -192,8 +192,14 @@ text=text.replace('</application>','<activity android:name="com.dycomment.tv.Fol
 text=text.replace("</application>",'<activity android:name="com.dycomment.tv.SwitchingSelfTestActivity" android:exported="true" />\n</application>')
 text=text.replace("</application>",'<activity android:name="com.dycomment.tv.CommentsSelfTestActivity" android:exported="true" />\n</application>')
 text=text.replace('</application>','<activity android:name="com.dycomment.tv.QuickShareActivity" android:exported="false" />\n<activity android:name="com.dycomment.tv.SurfaceCoverTestActivity" android:exported="false" />\n</application>')
+text=text.replace('</application>', '<activity android:name="com.dycomment.tv.OfficialLoginSelfTestActivity" android:exported="true" />\n</application>')
 if not SELF_TEST:
-    text=re.sub(r'<activity[^>]+android:name="com.dycomment.tv.(?:PlaybackSelfTestActivity|InteractionSelfTestActivity|SwitchingSelfTestActivity|CommentsSelfTestActivity|SurfaceCoverTestActivity)"[^>]*/>', '', text)
+    text=re.sub(r'<activity[^>]+android:name="com.dycomment.tv.(?:PlaybackSelfTestActivity|InteractionSelfTestActivity|SwitchingSelfTestActivity|CommentsSelfTestActivity|OfficialLoginSelfTestActivity|SurfaceCoverTestActivity)"[^>]*/>', '', text)
+else:
+    def export_ui_fixture(match):
+        node=re.sub(r' android:exported="[^"]*"', '', match.group())
+        return node.replace('<activity', '<activity android:exported="true"', 1)
+    text=re.sub(r'<activity\b[^>]*android:name="com.dycomment.tv.(?:ProfileActivity|FeaturedActivity|SearchActivity)"[^>]*>', export_ui_fixture, text)
 manifest.write_text(text)
 ids=decoded/'res/values/ids.xml'
 names=['android5_interaction_panel','android5_menu_panel','android5_comments_panel','android5_follow_badge'] + [f'android5_menu_row_{i}' for i in range(32)]
@@ -260,7 +266,7 @@ assert not list(package.glob('PlayerView*.smali')), 'before cleanup'
 cleanup(decoded)
 branding(decoded)
 assert not list(package.glob('PlayerView*.smali')), 'after cleanup'
-config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1007').replace('versionName: 1.1.9','versionName: 0.1.2')
+config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1008').replace('versionName: 1.1.9','versionName: 0.1.3')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
@@ -299,7 +305,7 @@ password=os.environ.get('ANDROID5_KEYSTORE_PASSWORD','android5-build')
 if not pathlib.Path(keystore).exists():
     run('keytool','-genkeypair','-keystore',keystore,'-storetype','PKCS12','-storepass',password,'-keypass',password,
         '-alias','android5','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=myDV Android5 Community')
-apk=DIST/'Douyin-TV-0.1.2.apk'
+apk=DIST/'Douyin-TV-0.1.3.apk'
 os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)

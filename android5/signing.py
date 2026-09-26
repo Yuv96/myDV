@@ -10,6 +10,8 @@ import urllib.request
 EXPECTED_SHA256 = 'a9a53928e2d288aba0ed134d1c92bf1e8ba29886f22b23578f56cd34ef1d32e6'
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCES = {
+    'v0.1.2': ('v0.1.2/Douyin-TV-0.1.2.apk',
+               '0d0af45d84958437fbf4eba236f90797dec5f54409ea3adfb41a83f77493762e'),
     'a5.4': ('android5-ui-return-v4/myDV-Android5-1.1.9-a5.4.apk',
              '09e69ff762d05a456861ccd08223bcd31dc32790c1fef3d574465841aacfc9b7'),
     'v0.1.1': ('v0.1.1/Douyin-TV-0.1.1.apk',
@@ -55,7 +57,7 @@ def references():
     print(json.dumps(report, indent=2))
     if any(item['certificate_sha256'] != EXPECTED_SHA256 for item in report.values()):
         raise RuntimeError('Published release certificates differ from the pinned upgrade signer')
-    print('PASS both published releases use the pinned upgrade certificate')
+    print('PASS all published releases use the pinned upgrade certificate')
 
 
 if __name__ == '__main__':

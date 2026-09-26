@@ -33,7 +33,7 @@ python3 -B tools/douyin_debug.py events
 
 `start --proxy http://127.0.0.1:端口` 可使用已有 HTTP 代理。结束窗口使用 `close`；若窗口已手工关闭，控制器会返回 410，删除 `.local-debug/session.json` 后可重新 `start`。凭证仍保留在本地私有文件，通用 Cookie 快照无法完整恢复 HttpOnly 登录态。
 
-## 独立 Passport 对照
+## 旧独立 Passport 对照
 
 ```sh
 python3 -B tools/douyin_debug.py qr
@@ -50,3 +50,5 @@ python3 -B tools/douyin_debug.py qr
 ## GitHub 验证
 
 `.github/workflows/douyin-debug.yml` 在 Python 3.10/3.12 上运行合成 Cookie 和模拟网络用例，覆盖作用域、过期时间、HttpOnly、凭证原子替换、失败保留旧账号和摘要脱敏。Android UI 编译与 API 21 回归由 `android5-player.yml` 执行。CI 不使用个人 Cookie。
+
+2026-09-26 后续复现：同机同网络简化取码成功、首轮轮询 4031；agent-webview 官方页连续轮询 `message=success/error_code=0/status=new`。官方请求包含 `sign`、`qs`、`a_bogus` 与设备上下文。`qr` 子命令仅用于旧链路诊断，v0.1.3 生产登录改用官方网页，不复制捕获的动态签名。Android WebView 兼容性与手机确认仍需分别验证。

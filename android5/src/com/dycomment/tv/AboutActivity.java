@@ -9,7 +9,7 @@ public final class AboutActivity extends Activity {
     @Override
     public void onCreate(Bundle b) {
         super.onCreate(b);
-        LinearLayout root = UiTheme.page(this, "抖音抬头版 0.1.2");
+        LinearLayout root = UiTheme.page(this, "抖音抬头版 0.1.3");
         ScrollView scroll = new ScrollView(this);
         scroll.addView(
                 UiTheme.text(
@@ -22,7 +22,7 @@ public final class AboutActivity extends Activity {
                                 + "菜单：喜欢、关注、收藏、作者主页、分享\n"
                                 + "再次按菜单：打开评论\n"
                                 + "返回：关闭面板或打开设置\n\n"
-                                + "账号与登录：显示二维码后，用抖音 App 扫描并在手机确认；读取持续失败时重新扫码。\n\n"
+                                + "账号与登录：进入官方网页，用方向键移动光标、确定点击登录，使用抖音 App 扫码确认后验证登录。\n\n"
                                 + "分享：选择好友即发送当前短视频。\n\n"
                                 + "反馈与联系\n"
                                 + "github.com/Yuv96/myDV",
