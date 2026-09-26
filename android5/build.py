@@ -2,11 +2,20 @@
 """Rebuild the public Lite APK with reviewed API-21 playback/cache sources."""
 import hashlib, os, pathlib, re, shutil, subprocess, urllib.request, zipfile
 from cleanup import apply as cleanup
+from branding import apply as branding
+from signing import require_release_signer
 
 ROOT=pathlib.Path(__file__).resolve().parent
 WORK=pathlib.Path(os.environ.get('BUILD_WORK',str(ROOT/'build')))
 WORK.mkdir(exist_ok=True)
 SELF_TEST=os.environ.get('SELF_TEST')=='1'
+configured_key=os.environ.get('ANDROID5_KEYSTORE')
+if not SELF_TEST and not configured_key:
+    raise RuntimeError('Production build requires the original release keystore; temporary signing is forbidden')
+if configured_key and not pathlib.Path(configured_key).is_file():
+    raise RuntimeError('Configured signing keystore does not exist; refusing to generate a replacement')
+if configured_key and not os.environ.get('ANDROID5_KEYSTORE_PASSWORD'):
+    raise RuntimeError('Configured signing keystore requires ANDROID5_KEYSTORE_PASSWORD')
 DIST=ROOT.parent/('dist-test' if SELF_TEST else 'dist')
 DIST.mkdir(exist_ok=True)
 SDK=pathlib.Path(os.environ['ANDROID_HOME'])
@@ -249,8 +258,9 @@ tree.write(layout,encoding='utf-8',xml_declaration=True)
 </shape>''')
 assert not list(package.glob('PlayerView*.smali')), 'before cleanup'
 cleanup(decoded)
+branding(decoded)
 assert not list(package.glob('PlayerView*.smali')), 'after cleanup'
-config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1006').replace('versionName: 1.1.9','versionName: 0.1.1')
+config=decoded/'apktool.yml' ; text=config.read_text().replace('versionCode: 9','versionCode: 1007').replace('versionName: 1.1.9','versionName: 0.1.2')
 assert 'minSdkVersion: 21' in text; config.write_text(text)
 assets=decoded/'assets'; assets.mkdir(exist_ok=True)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',assets/'LIBVLC-LICENSE.txt')
@@ -284,15 +294,18 @@ with zipfile.ZipFile(WORK/'base.apk') as source,zipfile.ZipFile(unsigned,'w',zip
             out.writestr(item,source.read(item.filename))
     for f in dexdir.glob('*.dex'): out.write(f,f.name)
 aligned=WORK/'aligned.apk'; run(BT/'zipalign','-f','4',unsigned,aligned)
-keystore=os.environ.get('ANDROID5_KEYSTORE',str(WORK/'test-only.p12'))
+keystore=configured_key or str(WORK/'test-only.p12')
 password=os.environ.get('ANDROID5_KEYSTORE_PASSWORD','android5-build')
 if not pathlib.Path(keystore).exists():
     run('keytool','-genkeypair','-keystore',keystore,'-storetype','PKCS12','-storepass',password,'-keypass',password,
         '-alias','android5','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=myDV Android5 Community')
-apk=DIST/'Douyin-TV-0.1.1.apk'
+apk=DIST/'Douyin-TV-0.1.2.apk'
 os.environ['BUILD_SIGN_PASSWORD']=password
 run(BT/'apksigner','sign','--ks',keystore,'--ks-key-alias','android5','--ks-pass','env:BUILD_SIGN_PASSWORD','--min-sdk-version','21','--out',apk,aligned)
 run(BT/'apksigner','verify','--verbose','--min-sdk-version','21',apk)
+if configured_key or not SELF_TEST:
+    digest=require_release_signer(apk,BT/'apksigner')
+    (DIST/'SIGNING_CERTIFICATE.txt').write_text('SHA-256: '+digest+'\nMatches published v0.1.1 and Android5 a5.4.\n')
 shutil.copy(bindings,DIST/bindings.name)
 shutil.copy(ROOT/'LIBVLC-LICENSE.txt',DIST/'LIBVLC-LICENSE.txt')
 (DIST/'SHA256SUMS.txt').write_text(hashlib.sha256(apk.read_bytes()).hexdigest()+'  '+apk.name+'\n')

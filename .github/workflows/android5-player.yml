@@ -1,6 +1,11 @@
 name: 抖音抬头版 · Android 5.0 build and test
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish v0.1.2 after all checks (main only)
+        type: boolean
+        default: false
   pull_request:
     branches: [main]
     paths: ['android5/**', '.github/workflows/android5-player.yml']
@@ -29,11 +34,12 @@ jobs:
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'build-tools;35.0.0' >/dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq ffmpeg fonts-noto-cjk
+          python3 -m pip install 'CairoSVG==2.8.2' 'Pillow==11.3.0'
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android5.p12"
             echo "ANDROID5_KEYSTORE=$RUNNER_TEMP/android5.p12" >> "$GITHUB_ENV"
-            echo "REQUIRE_RELEASE_SIGNER=1" >> "$GITHUB_ENV"
+            chmod 600 "$RUNNER_TEMP/android5.p12"
           fi
           if [ -n "$KEYSTORE_PASSWORD" ]; then
             delimiter="SIGNING_PASSWORD_$(openssl rand -hex 16)"
@@ -43,6 +49,8 @@ jobs:
               echo "$delimiter"
             } >> "$GITHUB_ENV"
           fi
+      - name: Verify the actual certificates of published upgrade baselines
+        run: python3 android5/signing.py
       - name: Compile API-21 regression build
         run: SELF_TEST=1 python3 android5/build.py
       - name: Verify manifest and packaged architectures
@@ -52,6 +60,11 @@ jobs:
           grep "sdkVersion:'21'" evidence/apk-info.txt
           grep "native-code:.*armeabi-v7a.*x86" evidence/apk-info.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 21 dist-test/*.apk > evidence/signature.txt
+          python3 android5/verify_branding.py dist-test/Douyin-TV-0.1.2.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android5-branding-preview
+          path: android5/build/branding-preview/
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -74,7 +87,55 @@ jobs:
         run: python3 android5/build.py
       - name: Verify production package
         run: python3 android5/verify_release.py
+      - name: Verify real upgrade installation on API 21
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 21
+          target: default
+          arch: x86
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash android5/upgrade_smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android5-upgrade-evidence
+          path: evidence/upgrade*.txt
       - uses: actions/upload-artifact@v4
         with:
           name: android5-player-apk
           path: dist/
+      - name: Remove runner signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/android5.p12"
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    needs: build-test
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: android5-player-apk
+          path: dist/
+      - name: Independently verify the release artifact before publishing
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0' >/dev/null
+          python3 android5/signing.py
+          python3 android5/verify_release.py
+          cd dist
+          sha256sum -c SHA256SUMS.txt
+      - name: Publish the verified package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.1.2 dist/* --target "$GITHUB_SHA" --draft --prerelease \
+            --title '抖音抬头版 0.1.2 — 评论区、状态胶囊与 TV 图标' \
+            --notes-file docs/releases/v0.1.2.md
+          gh release edit v0.1.2 --draft=false

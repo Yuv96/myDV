@@ -1,6 +1,8 @@
 dist/
 
 dist-test/
+dist-reference/
+evidence/
 *.p12
 *.jks
 *.keystore

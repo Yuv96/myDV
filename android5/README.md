@@ -1,6 +1,6 @@
 # 开发与构建
 
-应用：抖音抬头版 0.1.1。最低 API 21，目标 API 30，包名 `com.dycomment.tv.android5`，版本号 1006。保留既有签名才能覆盖此前的 Android5 社区版。
+应用：抖音抬头版 0.1.2。最低 API 21，目标 API 30，包名 `com.dycomment.tv.android5`，版本号 1007。保留既有签名才能覆盖此前的 Android5 社区版。
 
 ## 环境
 
@@ -9,12 +9,13 @@
 GitHub runner 需要 JDK 17、Python 3.10+、Android SDK Platform 35 与 Build Tools 35.0.0。回归构建另外需要 FFmpeg；模拟器需要 API 21 x86 系统镜像。
 
 ```sh
+# 以下仅供 GitHub runner；正式构建还需注入原签名 Secrets
 export ANDROID_HOME=/path/to/android-sdk
 python3 android5/build.py
 python3 android5/verify_release.py
 ```
 
-正式包输出到 `dist/Douyin-TV-0.1.1.apk`，不包含测试 Activity 或测试视频。`BUILD_WORK=/tmp/douyin-build` 可指定临时构建目录；依赖下载后校验固定 SHA-256。
+正式包输出到 `dist/Douyin-TV-0.1.2.apk`，不包含测试 Activity 或测试视频。`BUILD_WORK=/tmp/douyin-build` 可指定临时构建目录；依赖下载后校验固定 SHA-256。
 
 ```sh
 SELF_TEST=1 python3 android5/build.py
@@ -25,7 +26,11 @@ bash android5/smoke.sh
 
 ## 签名
 
-GitHub runner 可指定 `ANDROID5_KEYSTORE` 与 `ANDROID5_KEYSTORE_PASSWORD`，别名为 `android5`。不指定时产生仅适用于开发验证的签名。CI 默认签名不代表维护者发行签名。CI 可配置 `ANDROID5_KEYSTORE_BASE64`（可选密码 `ANDROID5_KEYSTORE_PASSWORD`）；未配置时仅生成开发签名产物。发行时必须用既有维护者密钥签署已通过 CI 的生产 APK，并比较重签前后的非签名 ZIP 条目一致、重新生成 SHA256SUMS.txt，再以 `REQUIRE_RELEASE_SIGNER=1 python3 android5/verify_release.py` 校验与已发布 a5.4 的证书一致。不要发布不能覆盖旧版的临时签名安装包。
+正式包必须使用原维护者密钥，GitHub Actions 通过 `ANDROID5_KEYSTORE_BASE64` 和 `ANDROID5_KEYSTORE_PASSWORD` 注入。密钥别名为 `android5`。缺少密钥、密码、文件或证书不一致时，正式构建直接失败，不生成可供发布的临时签名包。只有 `SELF_TEST=1` 且没有配置正式密钥时才允许使用一次性回归签名，这种测试包不会作为发布附件上传。
+
+CI 下载 SHA-256 固定的 a5.4 和 v0.1.1 发布包，读取真实证书并比对固定指纹；新正式包必须与两者一致。API 21 模拟器另执行 a5.4 → v0.1.1 → v0.1.2 的 `adb install -r` 升级链，并确认应用私有数据标记保留。`SIGNING_CERTIFICATE.txt` 随正式包提供公开证书指纹。
+
+仅主分支可以手动触发工作流的 `publish=true`。只有编译、完整回归、签名比对及真实升级安装全部通过，发布任务才会再次验证下载的产物并创建 v0.1.2。
 
 私钥、Cookie、Token、用户接口响应不得进入仓库、构建日志或发行附件。Actions 只需要公开源码和测试数据。
 
